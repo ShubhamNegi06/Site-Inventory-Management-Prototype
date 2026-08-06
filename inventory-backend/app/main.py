@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import auth, sites, users, samples, field_definitions, reports
+from app.api.routes import auth, sites, users, samples, field_definitions, reports, subjects
 
 app = FastAPI(title="Sample Inventory API", version="0.1.0")
 
@@ -18,6 +18,7 @@ app.include_router(auth.router)
 app.include_router(sites.router)
 app.include_router(users.router)
 app.include_router(samples.router)
+app.include_router(subjects.router)
 app.include_router(field_definitions.router)
 app.include_router(reports.router)
 

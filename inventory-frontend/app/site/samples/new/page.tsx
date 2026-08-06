@@ -16,6 +16,7 @@ export default function NewSamplePage() {
   const { fields, reload } = useFieldDefinitions();
   const router = useRouter();
 
+  const [subjectCode, setSubjectCode] = useState("");
   const [sampleCode, setSampleCode] = useState("");
   const [sampleType, setSampleType] = useState("");
   const [collectionDate, setCollectionDate] = useState("");
@@ -69,6 +70,7 @@ export default function NewSamplePage() {
     let sample;
     try {
       sample = await api.post("/samples", {
+        subject_code: subjectCode,
         sample_code: sampleCode,
         sample_type: sampleType,
         collection_date: collectionDate || null,
@@ -107,13 +109,24 @@ export default function NewSamplePage() {
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Sample information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Sample / subject ID</label>
+              <label className="label">Subject ID</label>
+              <input
+                className="input font-mono"
+                required
+                value={subjectCode}
+                onChange={(e) => setSubjectCode(e.target.value)}
+                placeholder="e.g. GB-01"
+              />
+              <p className="mt-1 text-xs text-ink-400">Shared across every sample from this patient.</p>
+            </div>
+            <div>
+              <label className="label">Sample ID</label>
               <input
                 className="input font-mono"
                 required
                 value={sampleCode}
                 onChange={(e) => setSampleCode(e.target.value)}
-                placeholder="e.g. UCMA-25-01"
+                placeholder="e.g. GB-01FFPE1"
               />
             </div>
             <div>

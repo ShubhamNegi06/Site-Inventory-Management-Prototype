@@ -1,11 +1,12 @@
 "use client";
 
-import { LayoutGrid, Building2 } from "lucide-react";
+import { LayoutGrid, Building2, Users } from "lucide-react";
 import { RoleGuard } from "@/components/RoleGuard";
 import { AppShell } from "@/components/AppShell";
 
 const navItems = [
   { href: "/admin/inventory", label: "Master inventory", icon: LayoutGrid },
+  { href: "/admin/subjects", label: "Subjects", icon: Users },
   { href: "/admin/sites", label: "Sites", icon: Building2 },
 ];
 

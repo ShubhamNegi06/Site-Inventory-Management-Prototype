@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { SampleFilters, type SampleFiltersState } from "@/components/SampleFilters";
 import { SampleTable } from "@/components/SampleTable";
 import { Pagination } from "@/components/Pagination";
@@ -11,7 +12,17 @@ import { useDebounced } from "@/lib/useDebounce";
 const EMPTY: SampleFiltersState = { search: "", sample_type: "", date_from: "", date_to: "", site_id: "" };
 
 export default function SiteInventoryPage() {
-  const [filters, setFilters] = useState<SampleFiltersState>(EMPTY);
+  return (
+    <Suspense fallback={<div className="flex justify-center py-16"><Spinner /></div>}>
+      <SiteInventoryInner />
+    </Suspense>
+  );
+}
+
+function SiteInventoryInner() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") ?? "";
+  const [filters, setFilters] = useState<SampleFiltersState>({ ...EMPTY, search: initialSearch });
   const debouncedFilters = useDebounced(filters);
   const [page, setPage] = useState(1);
   const { data, loading, error } = useSamples(debouncedFilters, page);

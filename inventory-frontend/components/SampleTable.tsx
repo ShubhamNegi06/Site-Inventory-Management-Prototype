@@ -31,6 +31,7 @@ export function SampleTable({
       <table>
         <thead>
           <tr>
+            <th>Subject</th>
             <th>Sample code</th>
             <th>Type</th>
             {sites && <th>Site</th>}
@@ -47,6 +48,7 @@ export function SampleTable({
               className="cursor-pointer"
               onClick={() => router.push(`${basePath}/${s.id}`)}
             >
+              <td className="font-mono text-ink-600">{s.subject_code ?? "—"}</td>
               <td className="font-mono font-medium text-ink">{s.sample_code}</td>
               <td>
                 <span className={`chip ${sampleTypeChipClass(s.sample_type)}`}>{s.sample_type}</span>
