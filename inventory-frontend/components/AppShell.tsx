@@ -25,13 +25,18 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col justify-between bg-ink px-4 py-5 text-white">
+      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col justify-between overflow-y-auto border-r border-line bg-sidebar px-4 py-5 text-ink">
         <div>
           <div className="mb-8 px-2">
-            <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/50">
+            <img
+              src="https://clinvedica.com/logo.png"
+              alt="Clin Vedica Life Sciences"
+              className="h-12 w-auto max-w-full object-contain"
+            />
+            <div className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
               Specimen Inventory
             </div>
-            <div className="mt-0.5 text-xs text-white/40">{roleLabel}</div>
+            <div className="mt-0.5 text-xs text-ink-400">{roleLabel}</div>
           </div>
 
           <nav className="space-y-0.5">
@@ -44,8 +49,8 @@ export function AppShell({
                   href={item.href}
                   className={`flex items-center gap-2.5 rounded px-2.5 py-2 text-sm transition-colors ${
                     active
-                      ? "bg-white/10 text-white font-medium"
-                      : "text-white/60 hover:bg-white/5 hover:text-white"
+                      ? "bg-gradient-to-r from-brand to-brand-amber text-white font-medium shadow-sm"
+                      : "text-ink-600 hover:bg-ink-50 hover:text-ink"
                   }`}
                 >
                   <Icon size={16} strokeWidth={2} />
@@ -56,11 +61,11 @@ export function AppShell({
           </nav>
         </div>
 
-        <div className="border-t border-white/10 pt-3">
-          <div className="px-2 text-xs text-white/50 truncate">{profile?.email}</div>
+        <div className="border-t border-line pt-3">
+          <div className="px-2 text-xs text-ink-400 truncate">{profile?.email}</div>
           <button
             onClick={signOut}
-            className="mt-1.5 flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white"
+            className="mt-1.5 flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-sm text-ink-600 hover:bg-ink-50 hover:text-ink"
           >
             <LogOut size={16} strokeWidth={2} />
             Sign out

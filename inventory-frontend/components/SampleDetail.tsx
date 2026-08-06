@@ -366,7 +366,7 @@ function ReportsPanel({ sampleId, canDelete }: { sampleId: string; canDelete: bo
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-400">Reports</h2>
         <label className="btn-secondary cursor-pointer">
-          {uploading ? <Spinner className="border-ink-100 border-t-slate" /> : <Upload size={14} />}
+          {uploading ? <Spinner className="border-ink-100 border-t-brand" /> : <Upload size={14} />}
           Upload
           <input
             type="file"
