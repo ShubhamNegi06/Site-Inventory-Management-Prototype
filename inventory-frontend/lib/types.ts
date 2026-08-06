@@ -34,6 +34,7 @@ export interface FieldDefinition {
 export interface Sample {
   id: string;
   site_id: string;
+  subject_code: string | null;
   sample_code: string;
   sample_type: string;
   collection_date: string | null;
@@ -48,6 +49,23 @@ export interface SamplePage {
   page: number;
   page_size: number;
   items: Sample[];
+}
+
+export interface Subject {
+  subject_code: string;
+  site_id: string;
+  sample_count: number;
+  sample_types: string[];
+  first_collection_date: string | null;
+  last_collection_date: string | null;
+  data: Record<string, unknown>;
+}
+
+export interface SubjectPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: Subject[];
 }
 
 export interface Report {

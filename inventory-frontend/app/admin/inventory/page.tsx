@@ -24,7 +24,8 @@ export default function MasterInventoryPage() {
 function MasterInventoryInner() {
   const searchParams = useSearchParams();
   const initialSiteId = searchParams.get("site_id") ?? "";
-  const [filters, setFilters] = useState<SampleFiltersState>({ ...EMPTY, site_id: initialSiteId });
+  const initialSearch = searchParams.get("search") ?? "";
+  const [filters, setFilters] = useState<SampleFiltersState>({ ...EMPTY, site_id: initialSiteId, search: initialSearch });
   const debouncedFilters = useDebounced(filters);
   const [page, setPage] = useState(1);
   const { sites } = useSites();
@@ -36,11 +37,12 @@ function MasterInventoryInner() {
     if (!data) return;
     const rows = data.items;
     const dynamicKeys = Array.from(new Set(rows.flatMap((r) => Object.keys(r.data ?? {}))));
-    const headers = ["sample_code", "sample_type", "site", "collection_date", ...dynamicKeys];
+    const headers = ["subject_code", "sample_code", "sample_type", "site", "collection_date", ...dynamicKeys];
     const lines = [
       headers.join(","),
       ...rows.map((r) =>
         [
+          r.subject_code ?? "",
           r.sample_code,
           r.sample_type,
           siteMap[r.site_id]?.name ?? "",

@@ -33,6 +33,7 @@ def create_sample(
 
     sample = Sample(
         site_id=user.site_id,
+        subject_code=payload.subject_code,
         sample_code=payload.sample_code,
         sample_type=payload.sample_type,
         collection_date=payload.collection_date,
@@ -50,8 +51,9 @@ def list_samples(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     site_id: uuid.UUID | None = Query(None, description="Admin-only: filter master inventory by site"),
+    subject_code: str | None = Query(None, description="Exact match -- all samples belonging to one subject"),
     sample_type: str | None = None,
-    search: str | None = Query(None, description="Free-text search across sample_code and JSONB data"),
+    search: str | None = Query(None, description="Free-text search across subject_code, sample_code and JSONB data"),
     date_from: date | None = None,
     date_to: date | None = None,
     page: int = Query(1, ge=1),
@@ -73,6 +75,8 @@ def list_samples(
             get_site_or_404(db, site_id)
             query = query.filter(Sample.site_id == site_id)
 
+    if subject_code:
+        query = query.filter(Sample.subject_code == subject_code)
     if sample_type:
         query = query.filter(Sample.sample_type == sample_type)
     if date_from:
@@ -84,6 +88,7 @@ def list_samples(
         query = query.filter(
             or_(
                 Sample.sample_code.ilike(like),
+                Sample.subject_code.ilike(like),
                 cast(Sample.data, String).ilike(like),  # simple search across dynamic fields
             )
         )
@@ -119,6 +124,8 @@ def update_sample(
     sample = get_sample_or_404(db, sample_id)
     assert_can_access_sample(user, sample)
 
+    if payload.subject_code is not None:
+        sample.subject_code = payload.subject_code
     if payload.sample_code is not None:
         sample.sample_code = payload.sample_code
     if payload.sample_type is not None:

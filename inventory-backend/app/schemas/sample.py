@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SampleCreate(BaseModel):
+    subject_code: str
     sample_code: str
     sample_type: str
     collection_date: Optional[date] = None
@@ -12,6 +13,7 @@ class SampleCreate(BaseModel):
 
 
 class SampleUpdate(BaseModel):
+    subject_code: Optional[str] = None
     sample_code: Optional[str] = None
     sample_type: Optional[str] = None
     collection_date: Optional[date] = None
@@ -23,6 +25,7 @@ class SampleOut(BaseModel):
 
     id: uuid.UUID
     site_id: uuid.UUID
+    subject_code: Optional[str] = None
     sample_code: str
     sample_type: str
     collection_date: Optional[date] = None

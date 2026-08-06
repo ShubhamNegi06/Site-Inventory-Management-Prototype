@@ -7,7 +7,9 @@ from app.db.session import Base
 
 class Sample(Base):
     """
-    A single block/tissue sample.
+    A single block/tissue sample. Multiple samples can belong to the same
+    subject (e.g. a tumor block and a matched normal-adjacent-tissue block
+    from the same patient) -- `subject_code` is what ties them together.
 
     Fixed columns cover fields that are (a) present for basically every
     sample and (b) commonly filtered/sorted/searched on, so they get a real
@@ -20,7 +22,8 @@ class Sample(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     site_id = Column(UUID(as_uuid=True), ForeignKey("sites.id"), nullable=False, index=True)
 
-    sample_code = Column(String, nullable=False, index=True)   # e.g. "UCMA-25-01" / Subject ID
+    subject_code = Column(String, nullable=True, index=True)   # e.g. "GB-01" -- shared across a subject's samples
+    sample_code = Column(String, nullable=False, index=True)   # e.g. "GB-01FFPE1" -- unique per physical sample
     sample_type = Column(String, nullable=False, index=True)   # e.g. "FFPE Block", "Frozen Tumor"
     collection_date = Column(Date, nullable=True, index=True)
 

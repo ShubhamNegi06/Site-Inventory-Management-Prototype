@@ -41,7 +41,8 @@ export function SampleDetail({
     }
   }, []);
 
-  const [form, setForm] = useState<{ sample_code: string; sample_type: string; collection_date: string; data: Record<string, unknown> }>({
+  const [form, setForm] = useState<{ subject_code: string; sample_code: string; sample_type: string; collection_date: string; data: Record<string, unknown> }>({
+    subject_code: "",
     sample_code: "",
     sample_type: "",
     collection_date: "",
@@ -55,6 +56,7 @@ export function SampleDetail({
       const s = await api.get(`/samples/${sampleId}`);
       setSample(s);
       setForm({
+        subject_code: s.subject_code ?? "",
         sample_code: s.sample_code,
         sample_type: s.sample_type,
         collection_date: s.collection_date ?? "",
@@ -120,6 +122,7 @@ export function SampleDetail({
     setError(null);
     try {
       const updated = await api.patch(`/samples/${sampleId}`, {
+        subject_code: form.subject_code,
         sample_code: form.sample_code,
         sample_type: form.sample_type,
         collection_date: form.collection_date || null,
@@ -179,6 +182,9 @@ export function SampleDetail({
             <h1 className="font-mono text-xl font-semibold text-ink">{sample.sample_code}</h1>
             <span className={`chip ${sampleTypeChipClass(sample.sample_type)}`}>{sample.sample_type}</span>
           </div>
+          {sample.subject_code && (
+            <p className="mt-0.5 text-sm text-ink-400">Subject <span className="font-mono text-ink-600">{sample.subject_code}</span></p>
+          )}
           <p className="mt-1 text-sm text-ink-400">Collected {formatDate(sample.collection_date)} · Added {formatDate(sample.created_at)}</p>
         </div>
         <div className="flex gap-2">
@@ -201,7 +207,11 @@ export function SampleDetail({
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Sample information</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">Sample / subject ID</label>
+                <label className="label">Subject ID</label>
+                <input className="input font-mono" value={form.subject_code} onChange={(e) => setForm((f) => ({ ...f, subject_code: e.target.value }))} />
+              </div>
+              <div>
+                <label className="label">Sample ID</label>
                 <input className="input font-mono" value={form.sample_code} onChange={(e) => setForm((f) => ({ ...f, sample_code: e.target.value }))} />
               </div>
               <div>
@@ -257,7 +267,7 @@ export function SampleDetail({
           {error && <div className="rounded border border-danger/30 bg-dangerSoft px-3 py-2 text-sm text-danger">{error}</div>}
 
           <div className="flex justify-end gap-2 border-t border-line pt-5">
-            <button className="btn-secondary" onClick={() => { setEditing(false); setForm({ sample_code: sample.sample_code, sample_type: sample.sample_type, collection_date: sample.collection_date ?? "", data: sample.data ?? {} }); }}>
+            <button className="btn-secondary" onClick={() => { setEditing(false); setForm({ subject_code: sample.subject_code ?? "", sample_code: sample.sample_code, sample_type: sample.sample_type, collection_date: sample.collection_date ?? "", data: sample.data ?? {} }); }}>
               Cancel
             </button>
             <button className="btn-primary" disabled={saving} onClick={handleSave}>
