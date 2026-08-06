@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+  }
+
+  ::selection {
+    @apply bg-slate-100;
+  }
+
+  *:focus-visible {
+    outline: 2px solid #2b5f5a;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-slate text-white hover:bg-slate-700;
+  }
+  .btn-secondary {
+    @apply btn border border-line bg-panel text-ink hover:bg-ink-50;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn text-ink-400 hover:bg-ink-50 hover:text-ink;
+  }
+
+  .input {
+    @apply w-full rounded border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-400 focus-visible:border-slate;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-ink-400;
+  }
+
+  .card {
+    @apply rounded-lg border border-line bg-panel shadow-panel;
+  }
+
+  .table-shell {
+    @apply overflow-x-auto rounded-lg border border-line bg-panel shadow-panel;
+  }
+  table {
+    @apply w-full border-collapse text-sm;
+  }
+  thead th {
+    @apply border-b border-line bg-ink-50 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-400;
+  }
+  tbody td {
+    @apply border-b border-line px-3 py-2.5 align-middle;
+  }
+  tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  tbody tr:hover {
+    @apply bg-ink-50/60;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-sm border-l-2 bg-ink-50 px-2 py-0.5 text-xs font-medium text-ink-600;
+  }
+}

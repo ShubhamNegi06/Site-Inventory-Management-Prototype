@@ -1,0 +1,63 @@
+export type UserRole = "admin" | "site";
+
+export interface Site {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  site_id: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export type FieldType = "text" | "number" | "date" | "select" | "boolean";
+
+export interface FieldDefinition {
+  id: string;
+  site_id: string | null;
+  field_key: string;
+  field_label: string;
+  field_type: FieldType;
+  section: string | null;
+  options: string | null;
+  created_at: string;
+}
+
+export interface Sample {
+  id: string;
+  site_id: string;
+  sample_code: string;
+  sample_type: string;
+  collection_date: string | null;
+  data: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SamplePage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: Sample[];
+}
+
+export interface Report {
+  id: string;
+  sample_id: string;
+  file_name: string;
+  content_type: string;
+  file_size: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
+export const SAMPLE_TYPES = ["FFPE Block", "Frozen Tumor", "Serum", "Plasma", "Other"];
