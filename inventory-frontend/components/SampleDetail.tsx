@@ -26,10 +26,20 @@ export function SampleDetail({
   const [sample, setSample] = useState<Sample | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [showAddField, setShowAddField] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadFailedNotice, setUploadFailedNotice] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("reportUploadFailed") === "1") {
+      setUploadFailedNotice(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   const [form, setForm] = useState<{ sample_code: string; sample_type: string; collection_date: string; data: Record<string, unknown> }>({
     sample_code: "",
@@ -40,6 +50,7 @@ export function SampleDetail({
 
   async function loadSample() {
     setLoading(true);
+    setLoadError(null);
     try {
       const s = await api.get(`/samples/${sampleId}`);
       setSample(s);
@@ -50,7 +61,13 @@ export function SampleDetail({
         data: s.data ?? {},
       });
     } catch (err) {
-      if (err instanceof ApiError && (err.status === 404 || err.status === 403)) setNotFound(true);
+      if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
+        setNotFound(true);
+      } else {
+        // Anything else (expired session, network failure, 500, a bad id, ...)
+        // is a real error -- surface it instead of silently claiming "not found".
+        setLoadError(err instanceof ApiError ? err.message : "Failed to load this sample. Check your connection and try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -125,6 +142,19 @@ export function SampleDetail({
 
   if (loading) {
     return <div className="flex justify-center py-16"><Spinner /></div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="card flex flex-col items-center gap-2 py-16 text-center">
+        <p className="text-sm font-medium text-danger">Couldn&apos;t load this sample</p>
+        <p className="max-w-sm text-xs text-ink-400">{loadError}</p>
+        <div className="mt-3 flex gap-2">
+          <button className="btn-secondary" onClick={() => router.push(backHref)}>Back to inventory</button>
+          <button className="btn-primary" onClick={loadSample}>Retry</button>
+        </div>
+      </div>
+    );
   }
 
   if (notFound || !sample) {
@@ -254,6 +284,11 @@ export function SampleDetail({
       )}
 
       <div className="mt-6">
+        {uploadFailedNotice && (
+          <div className="mb-3 rounded border border-amber/40 bg-amber-50 px-3 py-2 text-sm text-amber-600">
+            The sample saved, but the reports you attached didn&apos;t upload. Try again below.
+          </div>
+        )}
         <ReportsPanel sampleId={sampleId} canDelete={canDelete} />
       </div>
 
