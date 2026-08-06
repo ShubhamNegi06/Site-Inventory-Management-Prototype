@@ -1,5 +1,17 @@
 import { SampleDetail } from "@/components/SampleDetail";
 
-export default function SiteSampleDetailPage({ params }: { params: { id: string } }) {
-  return <SampleDetail sampleId={params.id} backHref="/site/inventory" canDelete={false} />;
+export default async function SiteSampleDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  return (
+    <SampleDetail
+      sampleId={id}
+      backHref="/site/inventory"
+      canDelete={true}
+    />
+  );
 }
