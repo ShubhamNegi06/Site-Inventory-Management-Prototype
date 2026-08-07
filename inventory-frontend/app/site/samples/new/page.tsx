@@ -11,6 +11,51 @@ import { api, ApiError } from "@/lib/api";
 import { SAMPLE_TYPES } from "@/lib/types";
 import type { FieldDefinition } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
+import { SECTION_ORDER } from "@/lib/sections";
+
+// Module-scope (not defined inside NewSamplePage) on purpose: a component
+// defined inside another component's body gets recreated -- a "new"
+// component type -- on every render, which makes React unmount and
+// remount its inputs instead of just updating them, dropping focus after
+// every keystroke. Keeping this stable and passing data in via props is
+// what lets typing work normally.
+function DynamicFieldGrid({
+  sectionFields,
+  data,
+  onChange,
+  onRemoveField,
+}: {
+  sectionFields: FieldDefinition[];
+  data: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+  onRemoveField: (field: FieldDefinition) => void;
+}) {
+  return (
+    <>
+      {sectionFields.map((f) => (
+        <div key={f.id}>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="label !mb-0">{f.field_label}</label>
+            <button
+              type="button"
+              onClick={() => onRemoveField(f)}
+              className="text-ink-400 hover:text-danger"
+              aria-label={`Remove ${f.field_label}`}
+              title="Remove this field"
+            >
+              <X size={13} />
+            </button>
+          </div>
+          <DynamicFieldInput
+            field={f}
+            value={data[f.field_key]}
+            onChange={(v) => onChange(f.field_key, v)}
+          />
+        </div>
+      ))}
+    </>
+  );
+}
 
 export default function NewSamplePage() {
   const { fields, reload } = useFieldDefinitions();
@@ -37,6 +82,23 @@ export default function NewSamplePage() {
     }
     return groups;
   }, [fields]);
+
+  // Canonical sections always render, in template order, even with zero
+  // dynamic fields yet. Anything registered under a section name we don't
+  // recognize (custom, ad hoc) renders afterward, in whatever order it was
+  // created -- same as before.
+  const extraSections = Object.keys(grouped).filter(
+    (s) => !SECTION_ORDER.includes(s as (typeof SECTION_ORDER)[number])
+  );
+
+  function openAddField(section?: string) {
+    setAddFieldSection(section);
+    setShowAddField(true);
+  }
+
+  function handleFieldChange(key: string, value: unknown) {
+    setData((d) => ({ ...d, [key]: value }));
+  }
 
   async function handleRemoveField(field: FieldDefinition) {
     if (!confirm(`Remove "${field.field_label}" from the form? Existing samples keep their saved value; this just stops it from being offered going forward.`)) return;
@@ -105,8 +167,10 @@ export default function NewSamplePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Case Details -- Subject ID and Sample ID are fixed columns; Type of
+            Tissue (and anything else registered under this section) is dynamic. */}
         <section className="card p-5">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Sample information</h2>
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Case Details</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Subject ID</label>
@@ -129,6 +193,47 @@ export default function NewSamplePage() {
                 placeholder="e.g. GB-01FFPE1"
               />
             </div>
+            <DynamicFieldGrid sectionFields={grouped["Case Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </div>
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Case Details")}>
+            <Plus size={14} /> Add field to this section
+          </button>
+        </section>
+
+        {/* Demographic Details -- fully dynamic (Age, Gender, Ethnicity, Country Of Origin, ...) */}
+        <section className="card p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Demographic Details</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <DynamicFieldGrid sectionFields={grouped["Demographic Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </div>
+          {(grouped["Demographic Details"] ?? []).length === 0 && (
+            <p className="text-sm text-ink-400">No fields yet.</p>
+          )}
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Demographic Details")}>
+            <Plus size={14} /> Add field to this section
+          </button>
+        </section>
+
+        {/* Diagnosis Information -- fully dynamic */}
+        <section className="card p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Diagnosis Information</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <DynamicFieldGrid sectionFields={grouped["Diagnosis Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </div>
+          {(grouped["Diagnosis Information"] ?? []).length === 0 && (
+            <p className="text-sm text-ink-400">No fields yet.</p>
+          )}
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Diagnosis Information")}>
+            <Plus size={14} /> Add field to this section
+          </button>
+        </section>
+
+        {/* Sample Information -- Sample Type and Date of Sample Collection are
+            fixed columns; Fixation, Tumor %, Necrosis %, Storage Temperature,
+            Date of Reporting, etc. are dynamic. */}
+        <section className="card p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Sample Information</h2>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Sample type</label>
               <select className="input" required value={sampleType} onChange={(e) => setSampleType(e.target.value)}>
@@ -139,53 +244,72 @@ export default function NewSamplePage() {
               </select>
             </div>
             <div>
-              <label className="label">Date of collection</label>
+              <label className="label">Date of Sample Collection</label>
               <input type="date" className="input" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
             </div>
+            <DynamicFieldGrid sectionFields={grouped["Sample Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
           </div>
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Sample Information")}>
+            <Plus size={14} /> Add field to this section
+          </button>
         </section>
 
-        {Object.entries(grouped).map(([section, sectionFields]) => (
+        {/* Serology Report -- fully dynamic (HIV, HBV, HCV) */}
+        <section className="card p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Serology Report</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <DynamicFieldGrid sectionFields={grouped["Serology Report"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </div>
+          {(grouped["Serology Report"] ?? []).length === 0 && (
+            <p className="text-sm text-ink-400">No fields yet.</p>
+          )}
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Serology Report")}>
+            <Plus size={14} /> Add field to this section
+          </button>
+        </section>
+
+        {/* Treatment Detail -- fully dynamic */}
+        <section className="card p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Treatment Detail</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <DynamicFieldGrid sectionFields={grouped["Treatment Detail"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </div>
+          {(grouped["Treatment Detail"] ?? []).length === 0 && (
+            <p className="text-sm text-ink-400">No fields yet.</p>
+          )}
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Treatment Detail")}>
+            <Plus size={14} /> Add field to this section
+          </button>
+        </section>
+
+        {/* Biomarker Characterization -- fully dynamic */}
+        <section className="card p-5">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Biomarker Characterization</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <DynamicFieldGrid sectionFields={grouped["Biomarker Characterization"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </div>
+          {(grouped["Biomarker Characterization"] ?? []).length === 0 && (
+            <p className="text-sm text-ink-400">No fields yet.</p>
+          )}
+          <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Biomarker Characterization")}>
+            <Plus size={14} /> Add field to this section
+          </button>
+        </section>
+
+        {/* Any custom/ad hoc sections someone added that aren't part of the template */}
+        {extraSections.map((section) => (
           <section key={section} className="card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{section}</h2>
             <div className="grid grid-cols-2 gap-4">
-              {sectionFields.map((f) => (
-                <div key={f.id}>
-                  <div className="mb-1 flex items-center justify-between">
-                    <label className="label !mb-0">{f.field_label}</label>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveField(f)}
-                      className="text-ink-400 hover:text-danger"
-                      aria-label={`Remove ${f.field_label}`}
-                      title="Remove this field"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                  <DynamicFieldInput
-                    field={f}
-                    value={data[f.field_key]}
-                    onChange={(v) => setData((d) => ({ ...d, [f.field_key]: v }))}
-                  />
-                </div>
-              ))}
+              <DynamicFieldGrid sectionFields={grouped[section]} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
             </div>
-            <button
-              type="button"
-              className="btn-ghost mt-4"
-              onClick={() => { setAddFieldSection(section); setShowAddField(true); }}
-            >
+            <button type="button" className="btn-ghost mt-4" onClick={() => openAddField(section)}>
               <Plus size={14} /> Add field to this section
             </button>
           </section>
         ))}
 
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => { setAddFieldSection(undefined); setShowAddField(true); }}
-        >
+        <button type="button" className="btn-secondary" onClick={() => openAddField(undefined)}>
           <Plus size={15} /> Add a new field
         </button>
 

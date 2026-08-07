@@ -11,6 +11,77 @@ import { Spinner } from "@/components/Spinner";
 import { sampleTypeChipClass, formatDate, formatBytes } from "@/lib/format";
 import { SAMPLE_TYPES } from "@/lib/types";
 import type { Report, Sample, FieldDefinition } from "@/lib/types";
+import { SECTION_ORDER } from "@/lib/sections";
+
+// Module-scope on purpose -- see the same note in app/site/samples/new/page.tsx.
+// Defining these inside SampleDetail's body would recreate them (a "new"
+// component type) on every render, causing React to remount every input
+// instead of updating it, which drops focus after each keystroke.
+function SectionCard({
+  title,
+  onAddField,
+  children,
+}: {
+  title: string;
+  onAddField: (section: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="card p-5">
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{title}</h2>
+      <div className="grid grid-cols-2 gap-4">{children}</div>
+      <button type="button" className="btn-ghost mt-4" onClick={() => onAddField(title)}>
+        <Plus size={14} /> Add field to this section
+      </button>
+    </section>
+  );
+}
+
+function EditFieldGrid({
+  section,
+  groupedDataKeys,
+  fieldByKey,
+  formData,
+  onChange,
+  onRemoveField,
+}: {
+  section: string;
+  groupedDataKeys: Record<string, string[]>;
+  fieldByKey: Record<string, FieldDefinition>;
+  formData: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+  onRemoveField: (key: string, def?: FieldDefinition) => void;
+}) {
+  const keys = groupedDataKeys[section] ?? [];
+  return (
+    <>
+      {keys.map((key) => {
+        const def = fieldByKey[key];
+        return (
+          <div key={key}>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="label !mb-0">{def?.field_label ?? key}</label>
+              <button
+                type="button"
+                onClick={() => onRemoveField(key, def)}
+                className="text-ink-400 hover:text-danger"
+                aria-label={`Remove ${def?.field_label ?? key}`}
+                title={def ? "Remove this field from the form" : "Remove this value from the sample"}
+              >
+                <X size={13} />
+              </button>
+            </div>
+            {def ? (
+              <DynamicFieldInput field={def} value={formData[key]} onChange={(v) => onChange(key, v)} />
+            ) : (
+              <input className="input" value={String(formData[key] ?? "")} onChange={(e) => onChange(key, e.target.value)} />
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 export function SampleDetail({
   sampleId,
@@ -31,6 +102,7 @@ export function SampleDetail({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [showAddField, setShowAddField] = useState(false);
+  const [addFieldSection, setAddFieldSection] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadFailedNotice, setUploadFailedNotice] = useState(false);
@@ -94,6 +166,19 @@ export function SampleDetail({
     }
     return groups;
   }, [editing, form.data, sample, fieldByKey]);
+
+  const extraSections = Object.keys(groupedDataKeys).filter(
+    (s) => !SECTION_ORDER.includes(s as (typeof SECTION_ORDER)[number])
+  );
+
+  function openAddField(section?: string) {
+    setAddFieldSection(section);
+    setShowAddField(true);
+  }
+
+  function handleFieldChange(key: string, value: unknown) {
+    setForm((f) => ({ ...f, data: { ...f.data, [key]: value } }));
+  }
 
   async function handleRemoveField(key: string, def?: FieldDefinition) {
     const label = def?.field_label ?? key;
@@ -206,7 +291,7 @@ export function SampleDetail({
       {editing ? (
         <div className="space-y-6">
           <section className="card p-5">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Sample information</h2>
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Case Details</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Subject ID</label>
@@ -216,6 +301,24 @@ export function SampleDetail({
                 <label className="label">Sample ID</label>
                 <input className="input font-mono" value={form.sample_code} onChange={(e) => setForm((f) => ({ ...f, sample_code: e.target.value }))} />
               </div>
+              <EditFieldGrid section="Case Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            </div>
+            <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Case Details")}>
+              <Plus size={14} /> Add field to this section
+            </button>
+          </section>
+
+          <SectionCard title="Demographic Details" onAddField={openAddField}>
+            <EditFieldGrid section="Demographic Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </SectionCard>
+
+          <SectionCard title="Diagnosis Information" onAddField={openAddField}>
+            <EditFieldGrid section="Diagnosis Information" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </SectionCard>
+
+          <section className="card p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Sample Information</h2>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Sample type</label>
                 <select className="input" value={form.sample_type} onChange={(e) => setForm((f) => ({ ...f, sample_type: e.target.value }))}>
@@ -224,45 +327,35 @@ export function SampleDetail({
                 </select>
               </div>
               <div>
-                <label className="label">Date of collection</label>
+                <label className="label">Date of Sample Collection</label>
                 <input type="date" className="input" value={form.collection_date} onChange={(e) => setForm((f) => ({ ...f, collection_date: e.target.value }))} />
               </div>
+              <EditFieldGrid section="Sample Information" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
             </div>
+            <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Sample Information")}>
+              <Plus size={14} /> Add field to this section
+            </button>
           </section>
 
-          {Object.entries(groupedDataKeys).map(([section, keys]) => (
-            <section key={section} className="card p-5">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{section}</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {keys.map((key) => {
-                  const def = fieldByKey[key];
-                  return (
-                    <div key={key}>
-                      <div className="mb-1 flex items-center justify-between">
-                        <label className="label !mb-0">{def?.field_label ?? key}</label>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveField(key, def)}
-                          className="text-ink-400 hover:text-danger"
-                          aria-label={`Remove ${def?.field_label ?? key}`}
-                          title={def ? "Remove this field from the form" : "Remove this value from the sample"}
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                      {def ? (
-                        <DynamicFieldInput field={def} value={form.data[key]} onChange={(v) => setForm((f) => ({ ...f, data: { ...f.data, [key]: v } }))} />
-                      ) : (
-                        <input className="input" value={String(form.data[key] ?? "")} onChange={(e) => setForm((f) => ({ ...f, data: { ...f.data, [key]: e.target.value } }))} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+          <SectionCard title="Serology Report" onAddField={openAddField}>
+            <EditFieldGrid section="Serology Report" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </SectionCard>
+
+          <SectionCard title="Treatment Detail" onAddField={openAddField}>
+            <EditFieldGrid section="Treatment Detail" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </SectionCard>
+
+          <SectionCard title="Biomarker Characterization" onAddField={openAddField}>
+            <EditFieldGrid section="Biomarker Characterization" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+          </SectionCard>
+
+          {extraSections.map((section) => (
+            <SectionCard key={section} title={section} onAddField={openAddField}>
+              <EditFieldGrid section={section} groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            </SectionCard>
           ))}
 
-          <button type="button" className="btn-secondary" onClick={() => setShowAddField(true)}>
+          <button type="button" className="btn-secondary" onClick={() => openAddField(undefined)}>
             <Plus size={15} /> Add a new field
           </button>
 
@@ -279,11 +372,28 @@ export function SampleDetail({
         </div>
       ) : (
         <div className="space-y-6">
-          {Object.entries(groupedDataKeys).map(([section, keys]) => (
+          {SECTION_ORDER.map((section) => {
+            const keys = groupedDataKeys[section] ?? [];
+            if (keys.length === 0) return null;
+            return (
+              <section key={section} className="card p-5">
+                <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{section}</h2>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  {keys.map((key) => (
+                    <div key={key}>
+                      <dt className="text-xs text-ink-400">{fieldByKey[key]?.field_label ?? key}</dt>
+                      <dd className="text-sm text-ink">{String(sample.data[key] ?? "—") || "—"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            );
+          })}
+          {extraSections.map((section) => (
             <section key={section} className="card p-5">
               <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{section}</h2>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-                {keys.map((key) => (
+                {groupedDataKeys[section].map((key) => (
                   <div key={key}>
                     <dt className="text-xs text-ink-400">{fieldByKey[key]?.field_label ?? key}</dt>
                     <dd className="text-sm text-ink">{String(sample.data[key] ?? "—") || "—"}</dd>
@@ -306,6 +416,7 @@ export function SampleDetail({
 
       {showAddField && (
         <AddFieldModal
+          defaultSection={addFieldSection}
           onClose={() => setShowAddField(false)}
           onCreated={(field) => {
             reloadFields();
@@ -338,12 +449,12 @@ function ReportsPanel({ sampleId, canDelete }: { sampleId: string; canDelete: bo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sampleId]);
 
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return;
+  async function handleFiles(files: File[]) {
+    if (files.length === 0) return;
     setUploading(true);
     setError(null);
     try {
-      await api.upload(`/samples/${sampleId}/reports`, Array.from(fileList));
+      await api.upload(`/samples/${sampleId}/reports`, files);
       await loadReports();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Upload failed");
@@ -375,7 +486,11 @@ function ReportsPanel({ sampleId, canDelete }: { sampleId: string; canDelete: bo
             multiple
             accept="application/pdf,image/png,image/jpeg,image/tiff,image/webp"
             className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []); // snapshot before clearing the input
+              e.target.value = "";
+              handleFiles(files);
+            }}
             disabled={uploading}
           />
         </label>

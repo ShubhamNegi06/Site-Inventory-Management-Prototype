@@ -49,7 +49,7 @@ def list_field_definitions(
         query = query.filter(
             or_(FieldDefinition.site_id.is_(None), FieldDefinition.site_id == user.site_id)
         )
-    return query.order_by(FieldDefinition.created_at.asc()).all()
+    return query.order_by(FieldDefinition.created_at.desc()).all()
 
 
 @router.delete("/{field_id}", status_code=204)
