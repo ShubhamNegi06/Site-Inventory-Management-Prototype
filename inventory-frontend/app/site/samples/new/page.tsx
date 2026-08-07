@@ -12,6 +12,8 @@ import { SAMPLE_TYPES } from "@/lib/types";
 import type { FieldDefinition } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
 import { SECTION_ORDER } from "@/lib/sections";
+import { sortByFieldOrder } from "@/lib/fieldOrder";
+import { useAuth } from "@/lib/auth-context";
 
 // Module-scope (not defined inside NewSamplePage) on purpose: a component
 // defined inside another component's body gets recreated -- a "new"
@@ -24,11 +26,13 @@ function DynamicFieldGrid({
   data,
   onChange,
   onRemoveField,
+  canRemove,
 }: {
   sectionFields: FieldDefinition[];
   data: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   onRemoveField: (field: FieldDefinition) => void;
+  canRemove: (field: FieldDefinition) => boolean;
 }) {
   return (
     <>
@@ -36,15 +40,17 @@ function DynamicFieldGrid({
         <div key={f.id}>
           <div className="mb-1 flex items-center justify-between">
             <label className="label !mb-0">{f.field_label}</label>
-            <button
-              type="button"
-              onClick={() => onRemoveField(f)}
-              className="text-ink-400 hover:text-danger"
-              aria-label={`Remove ${f.field_label}`}
-              title="Remove this field"
-            >
-              <X size={13} />
-            </button>
+            {canRemove(f) && (
+              <button
+                type="button"
+                onClick={() => onRemoveField(f)}
+                className="text-ink-400 hover:text-danger"
+                aria-label={`Remove ${f.field_label}`}
+                title="Remove this field"
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
           <DynamicFieldInput
             field={f}
@@ -59,6 +65,7 @@ function DynamicFieldGrid({
 
 export default function NewSamplePage() {
   const { fields, reload } = useFieldDefinitions();
+  const { profile } = useAuth();
   const router = useRouter();
 
   const [subjectCode, setSubjectCode] = useState("");
@@ -80,8 +87,21 @@ export default function NewSamplePage() {
       groups[key] = groups[key] ?? [];
       groups[key].push(f);
     }
+    for (const key of Object.keys(groups)) {
+      groups[key] = sortByFieldOrder(groups[key]);
+    }
     return groups;
   }, [fields]);
+
+  // A site user can only remove fields they registered for their own site
+  // -- global/template fields (site_id null) and other sites' fields
+  // aren't theirs to remove, so the button simply isn't shown for those
+  // (the backend enforces the same rule; this just avoids a 403 surprise).
+  function canRemoveField(field: FieldDefinition): boolean {
+    if (!profile) return false;
+    if (profile.role === "admin") return true;
+    return field.site_id === profile.site_id;
+  }
 
   // Canonical sections always render, in template order, even with zero
   // dynamic fields yet. Anything registered under a section name we don't
@@ -193,7 +213,7 @@ export default function NewSamplePage() {
                 placeholder="e.g. GB-01FFPE1"
               />
             </div>
-            <DynamicFieldGrid sectionFields={grouped["Case Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Case Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Case Details")}>
             <Plus size={14} /> Add field to this section
@@ -204,7 +224,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Demographic Details</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Demographic Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Demographic Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           {(grouped["Demographic Details"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -218,7 +238,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Diagnosis Information</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Diagnosis Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Diagnosis Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           {(grouped["Diagnosis Information"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -247,7 +267,7 @@ export default function NewSamplePage() {
               <label className="label">Date of Sample Collection</label>
               <input type="date" className="input" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
             </div>
-            <DynamicFieldGrid sectionFields={grouped["Sample Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Sample Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Sample Information")}>
             <Plus size={14} /> Add field to this section
@@ -258,7 +278,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Serology Report</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Serology Report"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Serology Report"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           {(grouped["Serology Report"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -272,7 +292,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Treatment Detail</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Treatment Detail"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Treatment Detail"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           {(grouped["Treatment Detail"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -286,7 +306,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Biomarker Characterization</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Biomarker Characterization"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Biomarker Characterization"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </div>
           {(grouped["Biomarker Characterization"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -301,7 +321,7 @@ export default function NewSamplePage() {
           <section key={section} className="card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{section}</h2>
             <div className="grid grid-cols-2 gap-4">
-              <DynamicFieldGrid sectionFields={grouped[section]} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+              <DynamicFieldGrid sectionFields={grouped[section]} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
             </div>
             <button type="button" className="btn-ghost mt-4" onClick={() => openAddField(section)}>
               <Plus size={14} /> Add field to this section
