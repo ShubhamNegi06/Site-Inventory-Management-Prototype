@@ -12,6 +12,8 @@ import { sampleTypeChipClass, formatDate, formatBytes } from "@/lib/format";
 import { SAMPLE_TYPES } from "@/lib/types";
 import type { Report, Sample, FieldDefinition } from "@/lib/types";
 import { SECTION_ORDER } from "@/lib/sections";
+import { sortKeysByFieldOrder } from "@/lib/fieldOrder";
+import { useAuth } from "@/lib/auth-context";
 
 // Module-scope on purpose -- see the same note in app/site/samples/new/page.tsx.
 // Defining these inside SampleDetail's body would recreate them (a "new"
@@ -44,6 +46,7 @@ function EditFieldGrid({
   formData,
   onChange,
   onRemoveField,
+  canRemove,
 }: {
   section: string;
   groupedDataKeys: Record<string, string[]>;
@@ -51,6 +54,7 @@ function EditFieldGrid({
   formData: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   onRemoveField: (key: string, def?: FieldDefinition) => void;
+  canRemove: (def?: FieldDefinition) => boolean;
 }) {
   const keys = groupedDataKeys[section] ?? [];
   return (
@@ -61,15 +65,17 @@ function EditFieldGrid({
           <div key={key}>
             <div className="mb-1 flex items-center justify-between">
               <label className="label !mb-0">{def?.field_label ?? key}</label>
-              <button
-                type="button"
-                onClick={() => onRemoveField(key, def)}
-                className="text-ink-400 hover:text-danger"
-                aria-label={`Remove ${def?.field_label ?? key}`}
-                title={def ? "Remove this field from the form" : "Remove this value from the sample"}
-              >
-                <X size={13} />
-              </button>
+              {canRemove(def) && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveField(key, def)}
+                  className="text-ink-400 hover:text-danger"
+                  aria-label={`Remove ${def?.field_label ?? key}`}
+                  title={def ? "Remove this field from the form" : "Remove this value from the sample"}
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
             {def ? (
               <DynamicFieldInput field={def} value={formData[key]} onChange={(v) => onChange(key, v)} />
@@ -96,6 +102,7 @@ export function SampleDetail({
 }) {
   const router = useRouter();
   const { fields, reload: reloadFields } = useFieldDefinitions();
+  const { profile } = useAuth();
   const [sample, setSample] = useState<Sample | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -164,12 +171,29 @@ export function SampleDetail({
       groups[section] = groups[section] ?? [];
       groups[section].push(key);
     }
+    for (const section of Object.keys(groups)) {
+      groups[section] = sortKeysByFieldOrder(groups[section]);
+    }
     return groups;
   }, [editing, form.data, sample, fieldByKey]);
 
   const extraSections = Object.keys(groupedDataKeys).filter(
     (s) => !SECTION_ORDER.includes(s as (typeof SECTION_ORDER)[number])
   );
+
+  // A site user can only remove a field they registered for their own site
+  // -- global/template fields and other sites' fields aren't theirs to
+  // remove, so the button just doesn't render for those (the backend
+  // enforces the same rule; this avoids a 403 surprise). Removing a raw
+  // value that has no matching field definition (def undefined) is always
+  // allowed -- that's just editing this sample's own data, not deleting a
+  // shared field.
+  function canRemoveField(def?: FieldDefinition): boolean {
+    if (!def) return true;
+    if (!profile) return false;
+    if (profile.role === "admin") return true;
+    return def.site_id === profile.site_id;
+  }
 
   function openAddField(section?: string) {
     setAddFieldSection(section);
@@ -301,7 +325,7 @@ export function SampleDetail({
                 <label className="label">Sample ID</label>
                 <input className="input font-mono" value={form.sample_code} onChange={(e) => setForm((f) => ({ ...f, sample_code: e.target.value }))} />
               </div>
-              <EditFieldGrid section="Case Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+              <EditFieldGrid section="Case Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
             </div>
             <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Case Details")}>
               <Plus size={14} /> Add field to this section
@@ -309,11 +333,11 @@ export function SampleDetail({
           </section>
 
           <SectionCard title="Demographic Details" onAddField={openAddField}>
-            <EditFieldGrid section="Demographic Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <EditFieldGrid section="Demographic Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </SectionCard>
 
           <SectionCard title="Diagnosis Information" onAddField={openAddField}>
-            <EditFieldGrid section="Diagnosis Information" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <EditFieldGrid section="Diagnosis Information" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </SectionCard>
 
           <section className="card p-5">
@@ -330,7 +354,7 @@ export function SampleDetail({
                 <label className="label">Date of Sample Collection</label>
                 <input type="date" className="input" value={form.collection_date} onChange={(e) => setForm((f) => ({ ...f, collection_date: e.target.value }))} />
               </div>
-              <EditFieldGrid section="Sample Information" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+              <EditFieldGrid section="Sample Information" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
             </div>
             <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Sample Information")}>
               <Plus size={14} /> Add field to this section
@@ -338,20 +362,20 @@ export function SampleDetail({
           </section>
 
           <SectionCard title="Serology Report" onAddField={openAddField}>
-            <EditFieldGrid section="Serology Report" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <EditFieldGrid section="Serology Report" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </SectionCard>
 
           <SectionCard title="Treatment Detail" onAddField={openAddField}>
-            <EditFieldGrid section="Treatment Detail" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <EditFieldGrid section="Treatment Detail" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </SectionCard>
 
           <SectionCard title="Biomarker Characterization" onAddField={openAddField}>
-            <EditFieldGrid section="Biomarker Characterization" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+            <EditFieldGrid section="Biomarker Characterization" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
           </SectionCard>
 
           {extraSections.map((section) => (
             <SectionCard key={section} title={section} onAddField={openAddField}>
-              <EditFieldGrid section={section} groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} />
+              <EditFieldGrid section={section} groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
             </SectionCard>
           ))}
 
