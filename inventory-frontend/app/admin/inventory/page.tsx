@@ -5,11 +5,13 @@ import { useSearchParams } from "next/navigation";
 import { Download } from "lucide-react";
 import { SampleFilters, type SampleFiltersState } from "@/components/SampleFilters";
 import { SampleTable } from "@/components/SampleTable";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
 import { Pagination } from "@/components/Pagination";
 import { Spinner } from "@/components/Spinner";
 import { useSamples } from "@/lib/useSamples";
 import { useSites } from "@/lib/useSites";
 import { useDebounced } from "@/lib/useDebounce";
+import { api, ApiError } from "@/lib/api";
 
 const EMPTY: SampleFiltersState = { search: "", sample_type: "", date_from: "", date_to: "", site_id: "" };
 
@@ -29,9 +31,36 @@ function MasterInventoryInner() {
   const debouncedFilters = useDebounced(filters);
   const [page, setPage] = useState(1);
   const { sites } = useSites();
-  const { data, loading, error } = useSamples(debouncedFilters, page);
+  const { data, loading, error, reload } = useSamples(debouncedFilters, page);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const siteMap = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s])), [sites]);
+
+  function handleFiltersChange(v: SampleFiltersState) {
+    setSelectedIds(new Set());
+    setFilters(v);
+    setPage(1);
+  }
+
+  function handlePageChange(p: number) {
+    setSelectedIds(new Set());
+    setPage(p);
+  }
+
+  async function handleBulkDelete() {
+    if (!confirm(`Delete ${selectedIds.size} sample${selectedIds.size === 1 ? "" : "s"}? This can't be undone from here.`)) return;
+    setDeleting(true);
+    try {
+      await api.post("/samples/bulk-delete", { ids: Array.from(selectedIds) });
+      setSelectedIds(new Set());
+      reload();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to delete samples");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function exportCsv() {
     if (!data) return;
@@ -75,8 +104,15 @@ function MasterInventoryInner() {
       </div>
 
       <div className="mb-4">
-        <SampleFilters value={filters} onChange={(v) => { setFilters(v); setPage(1); }} sites={sites} />
+        <SampleFilters value={filters} onChange={handleFiltersChange} sites={sites} />
       </div>
+
+      <BulkActionsBar
+        count={selectedIds.size}
+        deleting={deleting}
+        onDelete={handleBulkDelete}
+        onClear={() => setSelectedIds(new Set())}
+      />
 
       {loading && !data ? (
         <div className="flex justify-center py-16"><Spinner /></div>
@@ -84,8 +120,16 @@ function MasterInventoryInner() {
         <div className="rounded border border-danger/30 bg-dangerSoft px-4 py-3 text-sm text-danger">{error}</div>
       ) : (
         <>
-          <SampleTable samples={data?.items ?? []} sites={siteMap} basePath="/admin/samples" />
-          {data && <Pagination page={page} pageSize={data.page_size} total={data.total} onPageChange={setPage} />}
+          <SampleTable
+            samples={data?.items ?? []}
+            sites={siteMap}
+            basePath="/admin/samples"
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+          />
+          {data && (
+            <Pagination page={page} pageSize={data.page_size} total={data.total} onPageChange={handlePageChange} />
+          )}
         </>
       )}
     </div>

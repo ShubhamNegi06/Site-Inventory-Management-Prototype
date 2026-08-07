@@ -9,7 +9,7 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.sample import Sample
 from app.models.user import User, UserRole
-from app.schemas.sample import SampleCreate, SampleUpdate, SampleOut, SamplePage
+from app.schemas.sample import SampleCreate, SampleUpdate, SampleOut, SamplePage, BulkDeleteRequest, BulkDeleteResponse
 
 router = APIRouter(prefix="/samples", tags=["samples"])
 
@@ -146,12 +146,47 @@ def delete_sample(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Admin-only, per spec ('download or delete the data from the inventory')."""
-    if user.role != UserRole.admin:
-        raise HTTPException(status_code=403, detail="Only admins can delete samples")
-
+    """
+    Admins can delete any sample. Site users can delete samples from their
+    own inventory only -- assert_can_access_sample already enforces that
+    scoping the same way it does for reads/edits.
+    """
     sample = get_sample_or_404(db, sample_id)
+    assert_can_access_sample(user, sample)
+
     sample.is_deleted = True
     from datetime import datetime, timezone
     sample.deleted_at = datetime.now(timezone.utc)
     db.commit()
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+def bulk_delete_samples(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Same access rule as single delete, applied to a batch: admins can delete
+    any of the requested samples; site users only the ones in their own
+    site. IDs outside a site user's reach are silently skipped rather than
+    erroring the whole batch, so one stray/invalid id doesn't block the rest
+    -- the response tells the caller how many of what was requested actually
+    got deleted.
+    """
+    if not payload.ids:
+        return BulkDeleteResponse(deleted=0, requested=0)
+
+    query = db.query(Sample).filter(Sample.id.in_(payload.ids), Sample.is_deleted.is_(False))
+    if user.role == UserRole.site:
+        query = query.filter(Sample.site_id == user.site_id)
+
+    samples = query.all()
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    for sample in samples:
+        sample.is_deleted = True
+        sample.deleted_at = now
+    db.commit()
+
+    return BulkDeleteResponse(deleted=len(samples), requested=len(payload.ids))
