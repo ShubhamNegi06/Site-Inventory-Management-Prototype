@@ -1,0 +1,293 @@
+diff --git a/inventory-frontend/app/globals.css b/inventory-frontend/app/globals.css
+index 4ef23af..189a314 100644
+--- a/inventory-frontend/app/globals.css
++++ b/inventory-frontend/app/globals.css
+@@ -8,11 +8,11 @@
+   }
+ 
+   ::selection {
+-    @apply bg-slate-100;
++    @apply bg-brand-100;
+   }
+ 
+   *:focus-visible {
+-    outline: 2px solid #2b5f5a;
++    outline: 2px solid #A32626;
+     outline-offset: 2px;
+   }
+ }
+@@ -22,7 +22,7 @@
+     @apply inline-flex items-center justify-center gap-1.5 rounded px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+   }
+   .btn-primary {
+-    @apply btn bg-slate text-white hover:bg-slate-700;
++    @apply btn bg-gradient-to-r from-brand to-brand-amber text-white hover:opacity-90;
+   }
+   .btn-secondary {
+     @apply btn border border-line bg-panel text-ink hover:bg-ink-50;
+@@ -35,7 +35,7 @@
+   }
+ 
+   .input {
+-    @apply w-full rounded border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-400 focus-visible:border-slate;
++    @apply w-full rounded border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-400 focus-visible:border-brand;
+   }
+   .label {
+     @apply mb-1 block text-xs font-medium uppercase tracking-wide text-ink-400;
+diff --git a/inventory-frontend/app/layout.tsx b/inventory-frontend/app/layout.tsx
+index a9f3b48..c295dc0 100644
+--- a/inventory-frontend/app/layout.tsx
++++ b/inventory-frontend/app/layout.tsx
+@@ -10,8 +10,11 @@ import "./globals.css";
+ import { AuthProvider } from "@/lib/auth-context";
+ 
+ export const metadata: Metadata = {
+-  title: "Specimen Inventory",
+-  description: "Multi-site block sample inventory",
++  title: "Specimen Inventory | Clin Vedica Life Sciences",
++  description: "Multi-site block sample inventory — Clin Vedica Life Sciences",
++  icons: {
++    icon: "https://clinvedica.com/logo.png",
++  },
+ };
+ 
+ export default function RootLayout({ children }: { children: React.ReactNode }) {
+diff --git a/inventory-frontend/app/login/page.tsx b/inventory-frontend/app/login/page.tsx
+index 41ef5e3..870a197 100644
+--- a/inventory-frontend/app/login/page.tsx
++++ b/inventory-frontend/app/login/page.tsx
+@@ -2,12 +2,14 @@
+ 
+ import { useState } from "react";
+ import { useRouter } from "next/navigation";
++import { Eye, EyeOff } from "lucide-react";
+ import { createClient } from "@/lib/supabase/client";
+ import { Spinner } from "@/components/Spinner";
+ 
+ export default function LoginPage() {
+   const [email, setEmail] = useState("");
+   const [password, setPassword] = useState("");
++  const [showPassword, setShowPassword] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const [loading, setLoading] = useState(false);
+   const router = useRouter();
+@@ -30,17 +32,22 @@ export default function LoginPage() {
+   return (
+     <div className="flex min-h-screen">
+       {/* Left: brand panel -- signature element is the specimen grid pattern */}
+-      <div className="relative hidden w-1/2 flex-col justify-between bg-ink px-12 py-10 text-white lg:flex">
++      <div className="relative hidden w-1/2 flex-col justify-between border-r border-line bg-sidebar px-12 py-10 text-ink lg:flex">
+         <div>
+-          <div className="font-mono text-xs uppercase tracking-[0.2em] text-white/50">
++          <img
++            src="https://clinvedica.com/logo.png"
++            alt="Clin Vedica Life Sciences"
++            className="h-14 w-auto max-w-full object-contain"
++          />
++          <div className="mt-4 font-mono text-xs uppercase tracking-[0.2em] text-ink-400">
+             Specimen Inventory
+           </div>
+         </div>
+         <div>
+-          <h1 className="max-w-sm text-3xl font-semibold leading-tight">
++          <h1 className="max-w-sm text-3xl font-semibold leading-tight text-ink">
+             Every block, every site, one register.
+           </h1>
+-          <p className="mt-3 max-w-sm text-sm text-white/60">
++          <p className="mt-3 max-w-sm text-sm text-ink-400">
+             Track FFPE and frozen tumor blocks from collection to consolidation,
+             across every contributing site.
+           </p>
+@@ -52,7 +59,12 @@ export default function LoginPage() {
+       <div className="flex w-full flex-col items-center justify-center bg-paper px-6 lg:w-1/2">
+         <div className="w-full max-w-sm">
+           <div className="mb-8 lg:hidden">
+-            <div className="font-mono text-xs uppercase tracking-[0.2em] text-ink-400">
++            <img
++              src="https://clinvedica.com/logo.png"
++              alt="Clin Vedica Life Sciences"
++              className="h-12 w-auto max-w-full object-contain"
++            />
++            <div className="mt-2 font-mono text-xs uppercase tracking-[0.2em] text-ink-400">
+               Specimen Inventory
+             </div>
+           </div>
+@@ -76,15 +88,26 @@ export default function LoginPage() {
+             </div>
+             <div>
+               <label className="label" htmlFor="password">Password</label>
+-              <input
+-                id="password"
+-                type="password"
+-                required
+-                autoComplete="current-password"
+-                className="input"
+-                value={password}
+-                onChange={(e) => setPassword(e.target.value)}
+-              />
++              <div className="relative">
++                <input
++                  id="password"
++                  type={showPassword ? "text" : "password"}
++                  required
++                  autoComplete="current-password"
++                  className="input pr-10"
++                  value={password}
++                  onChange={(e) => setPassword(e.target.value)}
++                />
++                <button
++                  type="button"
++                  onClick={() => setShowPassword((v) => !v)}
++                  className="absolute inset-y-0 right-0 flex items-center px-3 text-ink-400 hover:text-ink"
++                  aria-label={showPassword ? "Hide password" : "Show password"}
++                  tabIndex={-1}
++                >
++                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
++                </button>
++              </div>
+             </div>
+ 
+             {error && (
+@@ -107,14 +130,12 @@ function SpecimenGrid() {
+   // 5x3 grid of small labeled tiles -- echoes a slide tray / block storage rack.
+   const codes = ["A1", "A2", "A3", "A4", "A5", "B1", "B2", "B3", "B4", "B5", "C1", "C2", "C3", "C4", "C5"];
+   return (
+-    <div className="grid grid-cols-5 gap-1.5 opacity-70">
++    <div className="grid grid-cols-5 gap-1.5 opacity-80">
+       {codes.map((c) => (
+         <div
+           key={c}
+-          className="flex h-9 w-9 items-center justify-center rounded-sm border border-white/15 font-mono text-[10px] text-white/40"
+-        >
+-          {c}
+-        </div>
++          className="h-9 w-9 rounded-sm border border-ink-100"
++        />
+       ))}
+     </div>
+   );
+diff --git a/inventory-frontend/components/AppShell.tsx b/inventory-frontend/components/AppShell.tsx
+index 213f50c..89ebba0 100644
+--- a/inventory-frontend/components/AppShell.tsx
++++ b/inventory-frontend/components/AppShell.tsx
+@@ -25,13 +25,18 @@ export function AppShell({
+ 
+   return (
+     <div className="flex min-h-screen">
+-      <aside className="flex w-60 shrink-0 flex-col justify-between bg-ink px-4 py-5 text-white">
++      <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col justify-between overflow-y-auto border-r border-line bg-sidebar px-4 py-5 text-ink">
+         <div>
+           <div className="mb-8 px-2">
+-            <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/50">
++            <img
++              src="https://clinvedica.com/logo.png"
++              alt="Clin Vedica Life Sciences"
++              className="h-12 w-auto max-w-full object-contain"
++            />
++            <div className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-ink-400">
+               Specimen Inventory
+             </div>
+-            <div className="mt-0.5 text-xs text-white/40">{roleLabel}</div>
++            <div className="mt-0.5 text-xs text-ink-400">{roleLabel}</div>
+           </div>
+ 
+           <nav className="space-y-0.5">
+@@ -44,8 +49,8 @@ export function AppShell({
+                   href={item.href}
+                   className={`flex items-center gap-2.5 rounded px-2.5 py-2 text-sm transition-colors ${
+                     active
+-                      ? "bg-white/10 text-white font-medium"
+-                      : "text-white/60 hover:bg-white/5 hover:text-white"
++                      ? "bg-gradient-to-r from-brand to-brand-amber text-white font-medium shadow-sm"
++                      : "text-ink-600 hover:bg-ink-50 hover:text-ink"
+                   }`}
+                 >
+                   <Icon size={16} strokeWidth={2} />
+@@ -56,11 +61,11 @@ export function AppShell({
+           </nav>
+         </div>
+ 
+-        <div className="border-t border-white/10 pt-3">
+-          <div className="px-2 text-xs text-white/50 truncate">{profile?.email}</div>
++        <div className="border-t border-line pt-3">
++          <div className="px-2 text-xs text-ink-400 truncate">{profile?.email}</div>
+           <button
+             onClick={signOut}
+-            className="mt-1.5 flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-sm text-white/60 hover:bg-white/5 hover:text-white"
++            className="mt-1.5 flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-sm text-ink-600 hover:bg-ink-50 hover:text-ink"
+           >
+             <LogOut size={16} strokeWidth={2} />
+             Sign out
+diff --git a/inventory-frontend/components/SampleDetail.tsx b/inventory-frontend/components/SampleDetail.tsx
+index 23cbe50..d520a8e 100644
+--- a/inventory-frontend/components/SampleDetail.tsx
++++ b/inventory-frontend/components/SampleDetail.tsx
+@@ -366,7 +366,7 @@ function ReportsPanel({ sampleId, canDelete }: { sampleId: string; canDelete: bo
+       <div className="mb-4 flex items-center justify-between">
+         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-400">Reports</h2>
+         <label className="btn-secondary cursor-pointer">
+-          {uploading ? <Spinner className="border-ink-100 border-t-slate" /> : <Upload size={14} />}
++          {uploading ? <Spinner className="border-ink-100 border-t-brand" /> : <Upload size={14} />}
+           Upload
+           <input
+             type="file"
+diff --git a/inventory-frontend/components/Spinner.tsx b/inventory-frontend/components/Spinner.tsx
+index 4173925..167c6b7 100644
+--- a/inventory-frontend/components/Spinner.tsx
++++ b/inventory-frontend/components/Spinner.tsx
+@@ -1,7 +1,7 @@
+ export function Spinner({ className = "" }: { className?: string }) {
+   return (
+     <div
+-      className={`h-5 w-5 animate-spin rounded-full border-2 border-ink-100 border-t-slate ${className}`}
++      className={`h-5 w-5 animate-spin rounded-full border-2 border-ink-100 border-t-brand ${className}`}
+       role="status"
+       aria-label="Loading"
+     />
+diff --git a/inventory-frontend/lib/format.ts b/inventory-frontend/lib/format.ts
+index e688727..904f9fe 100644
+--- a/inventory-frontend/lib/format.ts
++++ b/inventory-frontend/lib/format.ts
+@@ -1,5 +1,5 @@
+ const PALETTE = [
+-  "border-l-slate text-slate-700",
++  "border-l-brand text-brand-700",
+   "border-l-amber text-amber-600",
+   "border-l-[#5B6B78] text-ink-600",
+   "border-l-success text-success",
+diff --git a/inventory-frontend/tailwind.config.ts b/inventory-frontend/tailwind.config.ts
+index bf23c40..12c8cec 100644
+--- a/inventory-frontend/tailwind.config.ts
++++ b/inventory-frontend/tailwind.config.ts
+@@ -20,13 +20,15 @@ const config: Config = {
+         },
+         paper: "#F3F4F1", // app background -- cool neutral, not cream
+         panel: "#FFFFFF", // card/table surface
+-        slate: {
+-          DEFAULT: "#2B5F5A", // primary brand / actions -- lab-glass teal
+-          50: "#EAF1F0",
+-          100: "#D2E2E0",
+-          400: "#4C8580",
+-          600: "#234E4A",
+-          700: "#1B3E3B",
++        sidebar: "#FFF5F2", // pale sidebar/brand-panel surface, matches clinvedica.com
++        brand: {
++          DEFAULT: "#A32626", // Clin Vedica brand red -- primary actions
++          50: "#FBEAEA",
++          100: "#F3D2D1",
++          400: "#C97575",
++          600: "#8A1F1F",
++          700: "#7A1B1B",
++          amber: "#A15E0C", // gradient endpoint, matches clinvedica.com CTA button
+         },
+         amber: {
+           DEFAULT: "#B8763B", // secondary accent, used sparingly -- eosin stain
+@@ -36,7 +38,7 @@ const config: Config = {
+         },
+         line: "#DEDFDA", // hairline borders
+         success: "#3E7A4D",
+-        danger: "#B4443A",
++        danger: "#C2540E",
+         dangerSoft: "#F6E4E1",
+       },
+       fontFamily: {

@@ -1,5 +1,5 @@
 const PALETTE = [
-  "border-l-slate text-slate-700",
+  "border-l-brand text-brand-700",
   "border-l-amber text-amber-600",
   "border-l-[#5B6B78] text-ink-600",
   "border-l-success text-success",

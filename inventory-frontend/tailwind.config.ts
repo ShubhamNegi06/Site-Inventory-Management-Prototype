@@ -20,13 +20,15 @@ const config: Config = {
         },
         paper: "#F3F4F1", // app background -- cool neutral, not cream
         panel: "#FFFFFF", // card/table surface
-        slate: {
-          DEFAULT: "#2B5F5A", // primary brand / actions -- lab-glass teal
-          50: "#EAF1F0",
-          100: "#D2E2E0",
-          400: "#4C8580",
-          600: "#234E4A",
-          700: "#1B3E3B",
+        sidebar: "#FFF5F2", // pale sidebar/brand-panel surface, matches clinvedica.com
+        brand: {
+          DEFAULT: "#A32626", // Clin Vedica brand red -- primary actions
+          50: "#FBEAEA",
+          100: "#F3D2D1",
+          400: "#C97575",
+          600: "#8A1F1F",
+          700: "#7A1B1B",
+          amber: "#A15E0C", // gradient endpoint, matches clinvedica.com CTA button
         },
         amber: {
           DEFAULT: "#B8763B", // secondary accent, used sparingly -- eosin stain
@@ -36,7 +38,7 @@ const config: Config = {
         },
         line: "#DEDFDA", // hairline borders
         success: "#3E7A4D",
-        danger: "#B4443A",
+        danger: "#C2540E",
         dangerSoft: "#F6E4E1",
       },
       fontFamily: {

@@ -8,11 +8,11 @@
   }
 
   ::selection {
-    @apply bg-slate-100;
+    @apply bg-brand-100;
   }
 
   *:focus-visible {
-    outline: 2px solid #2b5f5a;
+    outline: 2px solid #A32626;
     outline-offset: 2px;
   }
 }
@@ -22,7 +22,7 @@
     @apply inline-flex items-center justify-center gap-1.5 rounded px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-slate text-white hover:bg-slate-700;
+    @apply btn bg-gradient-to-r from-brand to-brand-amber text-white hover:opacity-90;
   }
   .btn-secondary {
     @apply btn border border-line bg-panel text-ink hover:bg-ink-50;
@@ -35,7 +35,7 @@
   }
 
   .input {
-    @apply w-full rounded border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-400 focus-visible:border-slate;
+    @apply w-full rounded border border-line bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-400 focus-visible:border-brand;
   }
   .label {
     @apply mb-1 block text-xs font-medium uppercase tracking-wide text-ink-400;
