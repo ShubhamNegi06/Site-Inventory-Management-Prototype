@@ -9,12 +9,17 @@ export function SampleTable({
   samples,
   sites,
   basePath,
+  selectedIds,
+  onSelectionChange,
 }: {
   samples: Sample[];
   sites?: Record<string, Site>; // id -> Site, pass only when a Site column is needed
   basePath: string; // e.g. "/admin/samples" or "/site/samples"
+  selectedIds?: Set<string>;             // omit to render without selection checkboxes
+  onSelectionChange?: (ids: Set<string>) => void;
 }) {
   const router = useRouter();
+  const selectable = !!selectedIds && !!onSelectionChange;
 
   if (samples.length === 0) {
     return (
@@ -26,11 +31,43 @@ export function SampleTable({
     );
   }
 
+  const allSelected = selectable && samples.length > 0 && samples.every((s) => selectedIds!.has(s.id));
+
+  function toggleAll() {
+    if (!selectable) return;
+    const next = new Set(selectedIds);
+    if (allSelected) {
+      samples.forEach((s) => next.delete(s.id));
+    } else {
+      samples.forEach((s) => next.add(s.id));
+    }
+    onSelectionChange!(next);
+  }
+
+  function toggleOne(id: string) {
+    if (!selectable) return;
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectionChange!(next);
+  }
+
   return (
     <div className="table-shell">
       <table>
         <thead>
           <tr>
+            {selectable && (
+              <th className="w-10">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  aria-label="Select all on this page"
+                  className="h-4 w-4 rounded border-line accent-slate"
+                />
+              </th>
+            )}
             <th>Subject</th>
             <th>Sample code</th>
             <th>Type</th>
@@ -48,6 +85,17 @@ export function SampleTable({
               className="cursor-pointer"
               onClick={() => router.push(`${basePath}/${s.id}`)}
             >
+              {selectable && (
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds!.has(s.id)}
+                    onChange={() => toggleOne(s.id)}
+                    aria-label={`Select ${s.sample_code}`}
+                    className="h-4 w-4 rounded border-line accent-slate"
+                  />
+                </td>
+              )}
               <td className="font-mono text-ink-600">{s.subject_code ?? "—"}</td>
               <td className="font-mono font-medium text-ink">{s.sample_code}</td>
               <td>

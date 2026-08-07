@@ -15,11 +15,13 @@ import type { Report, Sample, FieldDefinition } from "@/lib/types";
 export function SampleDetail({
   sampleId,
   backHref,
-  canDelete,
+  canDeleteSample,
+  canDeleteReports,
 }: {
   sampleId: string;
   backHref: string;
-  canDelete: boolean;
+  canDeleteSample: boolean;
+  canDeleteReports: boolean;
 }) {
   const router = useRouter();
   const { fields, reload: reloadFields } = useFieldDefinitions();
@@ -193,7 +195,7 @@ export function SampleDetail({
               <Pencil size={14} /> Edit
             </button>
           )}
-          {canDelete && (
+          {canDeleteSample && (
             <button className="btn-danger" onClick={handleDelete}>
               <Trash2 size={14} /> Delete
             </button>
@@ -299,7 +301,7 @@ export function SampleDetail({
             The sample saved, but the reports you attached didn&apos;t upload. Try again below.
           </div>
         )}
-        <ReportsPanel sampleId={sampleId} canDelete={canDelete} />
+        <ReportsPanel sampleId={sampleId} canDelete={canDeleteReports} />
       </div>
 
       {showAddField && (
@@ -366,7 +368,7 @@ function ReportsPanel({ sampleId, canDelete }: { sampleId: string; canDelete: bo
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-400">Reports</h2>
         <label className="btn-secondary cursor-pointer">
-          {uploading ? <Spinner className="border-ink-100 border-t-brand" /> : <Upload size={14} />}
+          {uploading ? <Spinner className="border-ink-100 border-t-slate" /> : <Upload size={14} />}
           Upload
           <input
             type="file"

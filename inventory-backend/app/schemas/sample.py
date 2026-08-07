@@ -40,3 +40,12 @@ class SamplePage(BaseModel):
     page: int
     page_size: int
     items: list[SampleOut]
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted: int
+    requested: int
