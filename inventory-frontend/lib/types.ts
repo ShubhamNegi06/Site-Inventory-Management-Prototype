@@ -79,3 +79,9 @@ export interface Report {
 }
 
 export const SAMPLE_TYPES = ["FFPE Block", "Frozen Tumor", "Serum", "Plasma", "Other"];
+
+export interface FieldSuggestion {
+  key: string;
+  label: string;
+  type: string;
+}

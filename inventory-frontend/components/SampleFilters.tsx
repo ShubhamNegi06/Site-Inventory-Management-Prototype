@@ -1,7 +1,7 @@
 "use client";
 
-import { Search } from "lucide-react";
 import type { Site } from "@/lib/types";
+import { SearchFieldAutocomplete } from "@/components/SearchFieldAutocomplete";
 
 export interface SampleFiltersState {
   search: string;
@@ -28,15 +28,7 @@ export function SampleFilters({
     <div className="card flex flex-wrap items-end gap-3 p-4">
       <div className="min-w-[220px] flex-1">
         <label className="label">Search</label>
-        <div className="relative">
-          <Search size={15} className="pointer-events-none absolute left-2.5 top-2.5 text-ink-400" />
-          <input
-            className="input pl-8"
-            placeholder="Sample code, diagnosis, notes…"
-            value={value.search}
-            onChange={(e) => set("search", e.target.value)}
-          />
-        </div>
+        <SearchFieldAutocomplete value={value.search} onChange={(v) => set("search", v)} />
       </div>
 
       {sites && (
