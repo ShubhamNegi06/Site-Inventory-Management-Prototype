@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +14,18 @@ from app.schemas.sample import SampleCreate, SampleUpdate, SampleOut, SamplePage
 
 router = APIRouter(prefix="/samples", tags=["samples"])
 
+
+FIELD_SEARCH_RE = re.compile(
+    r"^(?P<field>[a-zA-Z0-9_\-]+):(.*)$"
+)
+
+def parse_search(search: str):
+    m = FIELD_SEARCH_RE.match(search)
+
+    if not m:
+        return None, search
+
+    return m.group("field"), m.group(2)
 
 @router.post("", response_model=SampleOut)
 def create_sample(
@@ -84,14 +97,33 @@ def list_samples(
     if date_to:
         query = query.filter(Sample.collection_date <= date_to)
     if search:
-        like = f"%{search}%"
-        query = query.filter(
-            or_(
-                Sample.sample_code.ilike(like),
-                Sample.subject_code.ilike(like),
-                cast(Sample.data, String).ilike(like),  # simple search across dynamic fields
+        field, value = parse_search(search)
+    
+        if field is None:
+            like = f"%{value}%"
+    
+            query = query.filter(
+                or_(
+                    Sample.sample_code.ilike(like),
+                    Sample.subject_code.ilike(like),
+                    cast(Sample.data, String).ilike(like),
+                )
             )
-        )
+    
+        elif field == "sample_code":
+            query = query.filter(
+                Sample.sample_code.ilike(f"%{value}%")
+            )
+    
+        elif field == "subject_code":
+            query = query.filter(
+                Sample.subject_code.ilike(f"%{value}%")
+            )
+    
+        else:
+            query = query.filter(
+                Sample.data[field].astext.ilike(f"%{value}%")
+            )
 
     total = query.count()
     items = (

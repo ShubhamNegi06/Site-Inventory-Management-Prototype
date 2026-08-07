@@ -25,3 +25,8 @@ class FieldDefinitionOut(BaseModel):
     section: Optional[str] = None
     options: Optional[str] = None
     created_at: datetime
+
+class SearchFieldSuggestion(BaseModel):
+    key: str
+    label: str
+    type: str

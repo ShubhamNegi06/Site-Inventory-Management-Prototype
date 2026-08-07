@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -6,7 +6,7 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.field_definition import FieldDefinition
 from app.models.user import User, UserRole
-from app.schemas.field_definition import FieldDefinitionCreate, FieldDefinitionOut
+from app.schemas.field_definition import FieldDefinitionCreate, FieldDefinitionOut, SearchFieldSuggestion
 
 router = APIRouter(prefix="/field-definitions", tags=["field-definitions"])
 
@@ -51,6 +51,46 @@ def list_field_definitions(
         )
     return query.order_by(FieldDefinition.created_at.desc()).all()
 
+@router.get(
+    "/search-fields",
+    response_model=list[SearchFieldSuggestion]
+)
+def search_fields(
+    q: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    query = db.query(FieldDefinition)
+
+    if user.role == UserRole.site:
+        query = query.filter(
+            or_(
+                FieldDefinition.site_id == user.site_id,
+                FieldDefinition.site_id.is_(None),
+            )
+        )
+
+    query = query.filter(
+        or_(
+            FieldDefinition.field_key.ilike(f"{q}%"),
+            FieldDefinition.field_label.ilike(f"{q}%"),
+        )
+    )
+
+    fields = (
+        query.order_by(FieldDefinition.field_key)
+        .limit(20)
+        .all()
+    )
+
+    return [
+        SearchFieldSuggestion(
+            key=f.field_key,
+            label=f.field_label,
+            type=f.field_type,
+        )
+        for f in fields
+    ]
 
 @router.delete("/{field_id}", status_code=204)
 def delete_field_definition(
