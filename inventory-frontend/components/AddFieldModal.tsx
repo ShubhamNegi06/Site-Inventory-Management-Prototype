@@ -7,11 +7,14 @@ import { api, ApiError } from "@/lib/api";
 import type { FieldDefinition, FieldType } from "@/lib/types";
 
 function toKey(label: string) {
+  // Sanitized for storage: "Country Of Origin" -> "country-of-origin".
+  // The label stays the human-readable text shown everywhere in the UI --
+  // this key is only ever used as the JSONB dict key under the hood.
   return label
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/(^_|_$)/g, "");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 export function AddFieldModal({
