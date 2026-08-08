@@ -22,3 +22,14 @@ class SubjectPage(BaseModel):
     page: int
     page_size: int
     items: list[SubjectOut]
+
+
+class SubjectSuggestion(BaseModel):
+    subject_code: str
+    sample_count: int
+
+
+class SubjectAutofillOut(BaseModel):
+    subject_code: str
+    found: bool                # False if no existing sample matches this subject_code
+    data: dict[str, Any]       # only the fields flagged is_autofill on the field registry

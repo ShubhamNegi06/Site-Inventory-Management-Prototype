@@ -6,7 +6,12 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.field_definition import FieldDefinition
 from app.models.user import User, UserRole
-from app.schemas.field_definition import FieldDefinitionCreate, FieldDefinitionOut, SearchFieldSuggestion
+from app.schemas.field_definition import (
+    FieldDefinitionCreate,
+    FieldDefinitionOut,
+    FieldDefinitionUpdate,
+    SearchFieldSuggestion,
+)
 
 router = APIRouter(prefix="/field-definitions", tags=["field-definitions"])
 
@@ -30,9 +35,38 @@ def create_field_definition(
         field_type=payload.field_type,
         section=payload.section,
         options=payload.options,
+        is_autofill=payload.is_autofill,
         created_by=user.id,
     )
     db.add(field)
+    db.commit()
+    db.refresh(field)
+    return field
+
+
+@router.patch("/{field_id}", response_model=FieldDefinitionOut)
+def update_field_definition(
+    field_id: str,
+    payload: FieldDefinitionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Currently only used to flip `is_autofill` on/off for an existing field
+    (e.g. via a toggle on the sample form), without having to delete and
+    re-add it. Same ownership rule as delete: admins can edit any field,
+    site users only the ones scoped to their own site.
+    """
+    field = db.query(FieldDefinition).filter(FieldDefinition.id == field_id).first()
+    if not field:
+        raise HTTPException(status_code=404, detail="Field not found")
+
+    if user.role != UserRole.admin and field.site_id != user.site_id:
+        raise HTTPException(status_code=403, detail="You can only edit fields scoped to your own site")
+
+    if payload.is_autofill is not None:
+        field.is_autofill = payload.is_autofill
+
     db.commit()
     db.refresh(field)
     return field
