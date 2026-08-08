@@ -1,4 +1,5 @@
 import jwt
+import time
 from jwt import PyJWKClient
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -59,25 +60,77 @@ def decode_supabase_jwt(token: str) -> dict:
     )
 
 
+#def get_current_user(
+#    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+#    db: Session = Depends(get_db),
+#) -> User:
+#    payload = decode_supabase_jwt(credentials.credentials)
+#    user_id = payload.get("sub")
+#    if not user_id:
+#        raise HTTPException(status_code=401, detail="Invalid token payload")
+#
+#    user = db.query(User).filter(User.id == user_id).first()
+#    if not user:
+#        raise HTTPException(
+#            status_code=403,
+#            detail="Account exists in auth but has no profile/role assigned. Contact an admin.",
+#       )
+#    if not user.is_active:
+#       raise HTTPException(status_code=403, detail="Account is deactivated")
+#    return user
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
+
+    start = time.perf_counter()
+
+    # JWT verification
+    jwt_start = time.perf_counter()
+
     payload = decode_supabase_jwt(credentials.credentials)
+
+    jwt_time = time.perf_counter() - jwt_start
+
     user_id = payload.get("sub")
+
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token payload",
+        )
+
+    # Database user lookup
+    db_start = time.perf_counter()
 
     user = db.query(User).filter(User.id == user_id).first()
+
+    db_time = time.perf_counter() - db_start
+
+    total_time = time.perf_counter() - start
+
+    print(
+        f"[AUTH TIMING] "
+        f"jwt={jwt_time:.4f}s "
+        f"user_db={db_time:.4f}s "
+        f"total={total_time:.4f}s"
+    )
+
     if not user:
         raise HTTPException(
             status_code=403,
             detail="Account exists in auth but has no profile/role assigned. Contact an admin.",
         )
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account is deactivated")
-    return user
 
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Account is deactivated",
+        )
+
+    return user
 
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != UserRole.admin:
