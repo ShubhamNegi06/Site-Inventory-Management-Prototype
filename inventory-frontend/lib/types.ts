@@ -28,6 +28,7 @@ export interface FieldDefinition {
   field_type: FieldType;
   section: string | null;
   options: string | null;
+  is_autofill: boolean;
   created_at: string;
 }
 
@@ -84,4 +85,15 @@ export interface FieldSuggestion {
   key: string;
   label: string;
   type: string;
+}
+
+export interface SubjectSuggestion {
+  subject_code: string;
+  sample_count: number;
+}
+
+export interface SubjectAutofill {
+  subject_code: string;
+  found: boolean;
+  data: Record<string, unknown>;
 }

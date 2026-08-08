@@ -1,19 +1,106 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Upload, FileText, Image as ImageIcon } from "lucide-react";
+import { Plus, X, Upload, FileText, Image as ImageIcon, Wand2 } from "lucide-react";
 import { useFieldDefinitions } from "@/lib/useFieldDefinitions";
 import { DynamicFieldInput } from "@/components/DynamicFieldInput";
 import { AddFieldModal } from "@/components/AddFieldModal";
 import { Spinner } from "@/components/Spinner";
 import { api, ApiError } from "@/lib/api";
 import { SAMPLE_TYPES } from "@/lib/types";
-import type { FieldDefinition } from "@/lib/types";
+import type { FieldDefinition, SubjectAutofill, SubjectSuggestion } from "@/lib/types";
 import { formatBytes } from "@/lib/format";
 import { SECTION_ORDER } from "@/lib/sections";
 import { sortByFieldOrder } from "@/lib/fieldOrder";
 import { useAuth } from "@/lib/auth-context";
+
+// Module-scope, same reasoning as DynamicFieldGrid below: keeping this
+// stable across renders is what lets the Subject ID input keep focus while
+// typing instead of remounting on every keystroke.
+function SubjectIdField({
+  value,
+  onChange,
+  onAutofillMatch,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onAutofillMatch: (subjectCode: string) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<SubjectSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const q = value.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      api
+        .get(`/subjects/suggestions?q=${encodeURIComponent(q)}`)
+        .then((res: SubjectSuggestion[]) => setSuggestions(res))
+        .catch(() => setSuggestions([]));
+    }, 250);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [value]);
+
+  function selectSuggestion(code: string) {
+    onChange(code);
+    setShowSuggestions(false);
+    onAutofillMatch(code);
+  }
+
+  function handleBlur() {
+    // Delay so a click on a suggestion registers before the list closes.
+    setTimeout(() => setShowSuggestions(false), 120);
+    const trimmed = value.trim();
+    if (trimmed && suggestions.some((s) => s.subject_code === trimmed)) {
+      onAutofillMatch(trimmed);
+    }
+  }
+
+  return (
+    <div className="relative">
+      <input
+        className="input font-mono"
+        required
+        autoComplete="off"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setShowSuggestions(true);
+        }}
+        onFocus={() => setShowSuggestions(true)}
+        onBlur={handleBlur}
+        placeholder="e.g. GB-01"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded border border-line bg-panel shadow-panel">
+          {suggestions.map((s) => (
+            <li key={s.subject_code}>
+              <button
+                type="button"
+                className="flex w-full items-baseline justify-between px-3 py-1.5 text-left font-mono text-sm hover:bg-ink-50"
+                onMouseDown={(e) => e.preventDefault()} // keeps focus so onBlur fires after this click
+                onClick={() => selectSuggestion(s.subject_code)}
+              >
+                <span>{s.subject_code}</span>
+                <span className="font-sans text-xs text-ink-400">
+                  {s.sample_count} sample{s.sample_count === 1 ? "" : "s"} on file
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 // Module-scope (not defined inside NewSamplePage) on purpose: a component
 // defined inside another component's body gets recreated -- a "new"
@@ -24,14 +111,18 @@ import { useAuth } from "@/lib/auth-context";
 function DynamicFieldGrid({
   sectionFields,
   data,
+  autofilledKeys,
   onChange,
   onRemoveField,
+  onToggleAutofill,
   canRemove,
 }: {
   sectionFields: FieldDefinition[];
   data: Record<string, unknown>;
+  autofilledKeys: Set<string>;
   onChange: (key: string, value: unknown) => void;
   onRemoveField: (field: FieldDefinition) => void;
+  onToggleAutofill: (field: FieldDefinition) => void;
   canRemove: (field: FieldDefinition) => boolean;
 }) {
   return (
@@ -39,18 +130,49 @@ function DynamicFieldGrid({
       {sectionFields.map((f) => (
         <div key={f.id}>
           <div className="mb-1 flex items-center justify-between">
-            <label className="label !mb-0">{f.field_label}</label>
-            {canRemove(f) && (
-              <button
-                type="button"
-                onClick={() => onRemoveField(f)}
-                className="text-ink-400 hover:text-danger"
-                aria-label={`Remove ${f.field_label}`}
-                title="Remove this field"
-              >
-                <X size={13} />
-              </button>
-            )}
+            <label className="label !mb-0 flex items-center gap-1.5">
+              {f.field_label}
+              {autofilledKeys.has(f.field_key) && (
+                <span
+                  className="rounded-sm bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600"
+                  title="Filled in from this subject's previous entry -- edit freely"
+                >
+                  Autofilled
+                </span>
+              )}
+            </label>
+            <div className="flex items-center gap-2">
+              {canRemove(f) && (
+                <button
+                  type="button"
+                  onClick={() => onToggleAutofill(f)}
+                  className={f.is_autofill ? "text-amber-600" : "text-ink-400 hover:text-amber-600"}
+                  aria-label={
+                    f.is_autofill
+                      ? `Stop autofilling ${f.field_label} from previous subject entries`
+                      : `Autofill ${f.field_label} from previous subject entries`
+                  }
+                  title={
+                    f.is_autofill
+                      ? "Autofills from Subject ID -- click to turn off"
+                      : "Doesn't autofill -- click to autofill from Subject ID"
+                  }
+                >
+                  <Wand2 size={13} />
+                </button>
+              )}
+              {canRemove(f) && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveField(f)}
+                  className="text-ink-400 hover:text-danger"
+                  aria-label={`Remove ${f.field_label}`}
+                  title="Remove this field"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </div>
           <DynamicFieldInput
             field={f}
@@ -79,6 +201,13 @@ export default function NewSamplePage() {
   const [saving, setSaving] = useState(false);
   const [savingLabel, setSavingLabel] = useState("Saving…");
   const [error, setError] = useState<string | null>(null);
+
+  // Which field_keys currently hold a value copied in from a previous
+  // subject entry (drives the "Autofilled" badge); a field drops out of
+  // this set the moment the person edits it, since at that point it's just
+  // their own entered value.
+  const [autofilledKeys, setAutofilledKeys] = useState<Set<string>>(new Set());
+  const [autofillNotice, setAutofillNotice] = useState<{ subjectCode: string; count: number } | null>(null);
 
   const grouped = useMemo(() => {
     const groups: Record<string, typeof fields> = {};
@@ -118,6 +247,45 @@ export default function NewSamplePage() {
 
   function handleFieldChange(key: string, value: unknown) {
     setData((d) => ({ ...d, [key]: value }));
+    // Once the person touches an autofilled field it's their own entry now,
+    // not a suggestion -- drop the badge.
+    setAutofilledKeys((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }
+
+  // Fired when the Subject ID field matches (via the suggestion dropdown, or
+  // on blur) a subject that already has samples on file. Pulls in just the
+  // fields registered as "autofill" -- Age, Gender, etc. -- and leaves
+  // everything else (Sample ID, Tumor %, dates, ...) for the user to enter
+  // fresh, since those genuinely vary sample-to-sample.
+  async function handleAutofillMatch(matchedSubjectCode: string) {
+    let result: SubjectAutofill;
+    try {
+      result = await api.get(`/subjects/${encodeURIComponent(matchedSubjectCode)}/autofill`);
+    } catch {
+      return; // non-critical -- just skip autofill silently
+    }
+    if (!result.found) return;
+
+    const keys = Object.keys(result.data);
+    if (keys.length === 0) return;
+
+    setData((d) => ({ ...d, ...result.data }));
+    setAutofilledKeys(new Set(keys));
+    setAutofillNotice({ subjectCode: matchedSubjectCode, count: keys.length });
+  }
+
+  async function handleToggleAutofill(field: FieldDefinition) {
+    try {
+      await api.patch(`/field-definitions/${field.id}`, { is_autofill: !field.is_autofill });
+      reload();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to update field");
+    }
   }
 
   async function handleRemoveField(field: FieldDefinition) {
@@ -194,12 +362,10 @@ export default function NewSamplePage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Subject ID</label>
-              <input
-                className="input font-mono"
-                required
+              <SubjectIdField
                 value={subjectCode}
-                onChange={(e) => setSubjectCode(e.target.value)}
-                placeholder="e.g. GB-01"
+                onChange={setSubjectCode}
+                onAutofillMatch={handleAutofillMatch}
               />
               <p className="mt-1 text-xs text-ink-400">Shared across every sample from this patient.</p>
             </div>
@@ -213,18 +379,37 @@ export default function NewSamplePage() {
                 placeholder="e.g. GB-01FFPE1"
               />
             </div>
-            <DynamicFieldGrid sectionFields={grouped["Case Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Case Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Case Details")}>
             <Plus size={14} /> Add field to this section
           </button>
         </section>
 
+        {autofillNotice && (
+          <div className="flex items-start justify-between gap-3 rounded border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-600">
+            <span className="flex items-center gap-1.5">
+              <Wand2 size={14} className="shrink-0" />
+              Filled in {autofillNotice.count} field{autofillNotice.count === 1 ? "" : "s"} from{" "}
+              <span className="font-mono">{autofillNotice.subjectCode}</span>&apos;s previous entry -- feel free to
+              edit anything below.
+            </span>
+            <button
+              type="button"
+              className="shrink-0 text-amber-600 hover:text-amber-700"
+              onClick={() => setAutofillNotice(null)}
+              aria-label="Dismiss autofill notice"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Demographic Details -- fully dynamic (Age, Gender, Ethnicity, Country Of Origin, ...) */}
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Demographic Details</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Demographic Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Demographic Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           {(grouped["Demographic Details"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -238,7 +423,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Diagnosis Information</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Diagnosis Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Diagnosis Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           {(grouped["Diagnosis Information"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -267,7 +452,7 @@ export default function NewSamplePage() {
               <label className="label">Date of Sample Collection</label>
               <input type="date" className="input" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
             </div>
-            <DynamicFieldGrid sectionFields={grouped["Sample Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Sample Information"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           <button type="button" className="btn-ghost mt-4" onClick={() => openAddField("Sample Information")}>
             <Plus size={14} /> Add field to this section
@@ -278,7 +463,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Serology Report</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Serology Report"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Serology Report"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           {(grouped["Serology Report"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -292,7 +477,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Treatment Detail</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Treatment Detail"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Treatment Detail"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           {(grouped["Treatment Detail"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -306,7 +491,7 @@ export default function NewSamplePage() {
         <section className="card p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">Biomarker Characterization</h2>
           <div className="grid grid-cols-2 gap-4">
-            <DynamicFieldGrid sectionFields={grouped["Biomarker Characterization"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+            <DynamicFieldGrid sectionFields={grouped["Biomarker Characterization"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>
           {(grouped["Biomarker Characterization"] ?? []).length === 0 && (
             <p className="text-sm text-ink-400">No fields yet.</p>
@@ -321,7 +506,7 @@ export default function NewSamplePage() {
           <section key={section} className="card p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-400">{section}</h2>
             <div className="grid grid-cols-2 gap-4">
-              <DynamicFieldGrid sectionFields={grouped[section]} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
+              <DynamicFieldGrid sectionFields={grouped[section]} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
             </div>
             <button type="button" className="btn-ghost mt-4" onClick={() => openAddField(section)}>
               <Plus size={14} /> Add field to this section

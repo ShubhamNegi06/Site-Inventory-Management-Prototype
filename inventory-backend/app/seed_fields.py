@@ -48,39 +48,47 @@ RENAMES = {
     "country_of_origin": "country-of-origin",
 }
 
-# (field_key, label, type, section, options)
+# (field_key, label, type, section, options, is_autofill)
+# is_autofill = True means: when a Subject ID entered on the "add sample"
+# form matches a subject that already has samples on file, pre-fill this
+# field from that subject's most recent sample. Reserved for fields that
+# describe the *patient*, not the physical sample, so they're not expected
+# to change across that patient's samples -- Age, Gender, Ethnicity,
+# Country Of Origin. Sample-specific fields (Tumor %, Storage Temperature,
+# Date of Reporting, ...) are deliberately left off; the team can still
+# flip individual fields on/off later from the "add sample" form.
 CANONICAL_FIELDS = [
-    ("type-of-tissue", "Type of Tissue", FieldType.select, "Case Details", "Tumor, NAT, Normal, Adjacent Normal"),
+    ("type-of-tissue", "Type of Tissue", FieldType.select, "Case Details", "Tumor, NAT, Normal, Adjacent Normal", False),
 
-    ("age", "Age", FieldType.number, "Demographic Details", None),
-    ("gender", "Gender", FieldType.select, "Demographic Details", "Male, Female, Transgender, Other"),
-    ("ethnicity", "Ethnicity", FieldType.text, "Demographic Details", None),
-    ("country-of-origin", "Country Of Origin", FieldType.select, "Demographic Details", "India, USA, UK, Canada, Australia, Other"),
+    ("age", "Age", FieldType.number, "Demographic Details", None, True),
+    ("gender", "Gender", FieldType.select, "Demographic Details", "Male, Female, Transgender, Other", True),
+    ("ethnicity", "Ethnicity", FieldType.text, "Demographic Details", None, True),
+    ("country-of-origin", "Country Of Origin", FieldType.select, "Demographic Details", "India, USA, UK, Canada, Australia, Other", True),
 
-    ("biopsy-surgery", "Biopsy/Surgery", FieldType.select, "Diagnosis Information", "Biopsy, Surgery"),
-    ("diagnostic-procedure", "Diagnostic Procedure", FieldType.text, "Diagnosis Information", None),
-    ("origin-site", "Origin Site", FieldType.text, "Diagnosis Information", None),
-    ("diagnosis-result", "Diagnosis Result", FieldType.text, "Diagnosis Information", None),
-    ("grade", "Grade", FieldType.text, "Diagnosis Information", None),
-    ("stage", "Stage", FieldType.text, "Diagnosis Information", None),
-    ("t", "T", FieldType.text, "Diagnosis Information", None),
-    ("n", "N", FieldType.text, "Diagnosis Information", None),
-    ("m", "M", FieldType.text, "Diagnosis Information", None),
+    ("biopsy-surgery", "Biopsy/Surgery", FieldType.select, "Diagnosis Information", "Biopsy, Surgery", False),
+    ("diagnostic-procedure", "Diagnostic Procedure", FieldType.text, "Diagnosis Information", None, False),
+    ("origin-site", "Origin Site", FieldType.text, "Diagnosis Information", None, False),
+    ("diagnosis-result", "Diagnosis Result", FieldType.text, "Diagnosis Information", None, False),
+    ("grade", "Grade", FieldType.text, "Diagnosis Information", None, False),
+    ("stage", "Stage", FieldType.text, "Diagnosis Information", None, False),
+    ("t", "T", FieldType.text, "Diagnosis Information", None, False),
+    ("n", "N", FieldType.text, "Diagnosis Information", None, False),
+    ("m", "M", FieldType.text, "Diagnosis Information", None, False),
 
-    ("date-of-reporting", "Date of Reporting", FieldType.date, "Sample Information", None),
-    ("fixation-used", "Fixation Used", FieldType.text, "Sample Information", None),
-    ("tumor-percent", "Tumor %", FieldType.text, "Sample Information", None),
-    ("necrosis-percent", "Necrosis %", FieldType.text, "Sample Information", None),
-    ("storage-temperature", "Storage Temperature", FieldType.text, "Sample Information", None),
+    ("date-of-reporting", "Date of Reporting", FieldType.date, "Sample Information", None, False),
+    ("fixation-used", "Fixation Used", FieldType.text, "Sample Information", None, False),
+    ("tumor-percent", "Tumor %", FieldType.text, "Sample Information", None, False),
+    ("necrosis-percent", "Necrosis %", FieldType.text, "Sample Information", None, False),
+    ("storage-temperature", "Storage Temperature", FieldType.text, "Sample Information", None, False),
 
-    ("hiv", "HIV", FieldType.select, "Serology Report", "Positive, Negative, Not Tested"),
-    ("hbv", "HBV", FieldType.select, "Serology Report", "Positive, Negative, Not Tested"),
-    ("hcv", "HCV", FieldType.select, "Serology Report", "Positive, Negative, Not Tested"),
+    ("hiv", "HIV", FieldType.select, "Serology Report", "Positive, Negative, Not Tested", False),
+    ("hbv", "HBV", FieldType.select, "Serology Report", "Positive, Negative, Not Tested", False),
+    ("hcv", "HCV", FieldType.select, "Serology Report", "Positive, Negative, Not Tested", False),
 
-    ("treatment-information", "Treatment Information (Adjuvant/Neo-Adjuvant)", FieldType.select, "Treatment Detail", "Adjuvant, Neo-Adjuvant, Treatment Naive"),
-    ("neoadjuvant-treatment-details", "If Neo-Adjuvant (Treatment Details)", FieldType.text, "Treatment Detail", None),
+    ("treatment-information", "Treatment Information (Adjuvant/Neo-Adjuvant)", FieldType.select, "Treatment Detail", "Adjuvant, Neo-Adjuvant, Treatment Naive", False),
+    ("neoadjuvant-treatment-details", "If Neo-Adjuvant (Treatment Details)", FieldType.text, "Treatment Detail", None, False),
 
-    ("biomarker-details", "Biomarker Details", FieldType.text, "Biomarker Characterization", None),
+    ("biomarker-details", "Biomarker Details", FieldType.text, "Biomarker Characterization", None, False),
 ]
 
 
@@ -117,7 +125,7 @@ def run():
         db.commit()
 
         print("\n--- Step 2: syncing labels/sections/types, adding anything missing ---")
-        for key, label, ftype, section, options in CANONICAL_FIELDS:
+        for key, label, ftype, section, options, is_autofill in CANONICAL_FIELDS:
             existing = db.query(FieldDefinition).filter(FieldDefinition.field_key == key).all()
             if existing:
                 for d in existing:
@@ -125,6 +133,7 @@ def run():
                     d.field_type = ftype
                     d.section = section
                     d.options = options
+                    d.is_autofill = is_autofill
                 print(f"updated: {key}")
             else:
                 db.add(
@@ -135,6 +144,7 @@ def run():
                         field_type=ftype,
                         section=section,
                         options=options,
+                        is_autofill=is_autofill,
                         created_by=None,
                     )
                 )

@@ -103,7 +103,7 @@ export function SampleTable({
               </td>
               {sites && <td className="text-ink-600">{sites[s.site_id]?.name ?? "—"}</td>}
               <td className="text-ink-600">{formatDate(s.collection_date)}</td>
-              <td className="text-ink-600">{(s.data?.diagnosis as string) ?? "—"}</td>
+              <td className="text-ink-600">{(s.data?.["diagnosis-result"] as string) ?? "—"}</td>
               <td className="text-ink-600">{(s.data?.stage as string) ?? "—"}</td>
               <td className="text-ink-400">{formatDate(s.created_at)}</td>
             </tr>

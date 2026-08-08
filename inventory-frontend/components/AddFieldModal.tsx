@@ -30,6 +30,7 @@ export function AddFieldModal({
   const [type, setType] = useState<FieldType>("text");
   const [section, setSection] = useState(defaultSection ?? "");
   const [options, setOptions] = useState("");
+  const [isAutofill, setIsAutofill] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,7 @@ export function AddFieldModal({
         field_type: type,
         section: section || null,
         options: type === "select" ? options : null,
+        is_autofill: isAutofill,
       });
       onCreated(field);
       onClose();
@@ -82,6 +84,21 @@ export function AddFieldModal({
           <label className="label">Section</label>
           <input className="input" value={section} onChange={(e) => setSection(e.target.value)} placeholder="e.g. Diagnosis Information" />
         </div>
+        <label className="flex items-start gap-2 text-sm text-ink-400">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={isAutofill}
+            onChange={(e) => setIsAutofill(e.target.checked)}
+          />
+          <span>
+            Autofill from Subject ID<br />
+            <span className="text-xs">
+              Pre-fill this field when the Subject ID matches a subject that already has samples on file
+              (e.g. Age, Gender). Still editable afterward.
+            </span>
+          </span>
+        </label>
         {error && <div className="rounded border border-danger/30 bg-dangerSoft px-3 py-2 text-sm text-danger">{error}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
