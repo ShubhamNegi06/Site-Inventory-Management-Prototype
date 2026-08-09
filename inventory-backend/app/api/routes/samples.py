@@ -1,7 +1,7 @@
 import re
 import uuid
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import or_, cast, String
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -11,7 +11,19 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.sample import Sample
 from app.models.user import User, UserRole
-from app.schemas.sample import SampleCreate, SampleUpdate, SampleOut, SamplePage, BulkDeleteRequest, BulkDeleteResponse
+from app.services import bulk_import as bulk_import_service
+from app.schemas.sample import (
+    SampleCreate,
+    SampleUpdate,
+    SampleOut,
+    SamplePage,
+    BulkDeleteRequest,
+    BulkDeleteResponse,
+    BulkImportPreviewResponse,
+    BulkImportCommitRequest,
+    BulkImportCommitResponse,
+    BulkImportRowResult,
+)
 
 router = APIRouter(prefix="/samples", tags=["samples"])
 
@@ -260,3 +272,90 @@ def bulk_delete_samples(
     db.commit()
 
     return BulkDeleteResponse(deleted=len(samples), requested=len(payload.ids))
+
+
+MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+IMPORT_CONTENT_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+    "application/vnd.ms-excel",  # some browsers send this for .xlsx too
+}
+
+
+@router.post("/bulk-import/preview", response_model=BulkImportPreviewResponse)
+async def preview_bulk_import(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Parses an uploaded .xlsx against the sample template's column headers
+    (matched to known field definitions -- global + this site's own) and
+    validates every row, WITHOUT writing anything to the database. Lets the
+    frontend show a review table -- including duplicate/missing IDs and any
+    columns it couldn't map to a known field -- before the user commits.
+    """
+    if user.role != UserRole.site:
+        raise HTTPException(status_code=403, detail="Only site users can import samples")
+
+    filename = (file.filename or "").lower()
+    if file.content_type not in IMPORT_CONTENT_TYPES and not filename.endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="Please upload an .xlsx file")
+
+    content = await file.read()
+    if len(content) > MAX_IMPORT_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File exceeds 10MB limit")
+
+    try:
+        return bulk_import_service.parse_workbook(content, db, user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/bulk-import/commit", response_model=BulkImportCommitResponse)
+def commit_bulk_import(
+    payload: BulkImportCommitRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Inserts rows the frontend already validated via /bulk-import/preview.
+    Each row is its own commit, so one failure (e.g. a sample_code that got
+    claimed by someone else between preview and commit) doesn't roll back
+    the rest of the batch -- the response reports each row's outcome.
+    """
+    if user.role != UserRole.site:
+        raise HTTPException(status_code=403, detail="Only site users can import samples")
+
+    results: list[BulkImportRowResult] = []
+    created = 0
+
+    for row in payload.rows:
+        sample = Sample(
+            site_id=user.site_id,
+            subject_code=row.subject_code,
+            sample_code=row.sample_code,
+            sample_type=row.sample_type,
+            collection_date=row.collection_date,
+            data=row.data,
+            created_by=user.id,
+        )
+        db.add(sample)
+        try:
+            db.commit()
+        except IntegrityError as e:
+            db.rollback()
+            message = (
+                f'Sample ID "{row.sample_code}" is already in use.'
+                if _is_sample_code_violation(e)
+                else "This sample conflicts with an existing record."
+            )
+            results.append(
+                BulkImportRowResult(row_number=row.row_number, sheet=row.sheet, sample_code=row.sample_code, status="failed", error=message)
+            )
+            continue
+        created += 1
+        results.append(
+            BulkImportRowResult(row_number=row.row_number, sheet=row.sheet, sample_code=row.sample_code, status="created")
+        )
+
+    return BulkImportCommitResponse(created=created, failed=len(payload.rows) - created, results=results)
