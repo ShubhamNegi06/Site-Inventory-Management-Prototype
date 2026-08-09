@@ -93,4 +93,18 @@ export const api = {
     });
     return handle(res);
   },
+
+  // Like upload(), but for endpoints that take a single file under a field
+  // name other than "files" (e.g. bulk-import's "file").
+  async uploadOne(path: string, fieldName: string, file: File) {
+    const headers = await authHeader();
+    const formData = new FormData();
+    formData.append(fieldName, file);
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    return handle(res);
+  },
 };

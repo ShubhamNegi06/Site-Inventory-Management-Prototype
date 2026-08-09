@@ -97,3 +97,37 @@ export interface SubjectAutofill {
   found: boolean;
   data: Record<string, unknown>;
 }
+
+// --- Bulk import (Excel) --------------------------------------------
+
+export interface BulkImportRow {
+  row_number: number;
+  sheet: string;
+  subject_code: string | null;
+  sample_code: string | null;
+  sample_type: string | null;
+  collection_date: string | null;
+  data: Record<string, unknown>;
+  errors: string[];
+}
+
+export interface BulkImportPreviewResponse {
+  rows: BulkImportRow[];
+  unmapped_columns: string[];
+  valid_count: number;
+  error_count: number;
+}
+
+export interface BulkImportRowResult {
+  row_number: number;
+  sheet: string;
+  sample_code: string;
+  status: "created" | "failed";
+  error: string | null;
+}
+
+export interface BulkImportCommitResponse {
+  created: number;
+  failed: number;
+  results: BulkImportRowResult[];
+}
