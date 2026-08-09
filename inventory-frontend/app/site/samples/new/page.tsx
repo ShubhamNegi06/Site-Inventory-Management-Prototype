@@ -201,6 +201,35 @@ export default function NewSamplePage() {
   const [saving, setSaving] = useState(false);
   const [savingLabel, setSavingLabel] = useState("Saving…");
   const [error, setError] = useState<string | null>(null);
+  // Errors attributed to a specific field (currently just sample_code
+  // uniqueness) render inline next to that input instead of only in the
+  // generic banner below the form.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // Refs for inputs that can carry a field-level error, so a submit error
+  // can scroll the offending field into view -- without this, an error on
+  // Sample ID (near the top) is invisible if the person is scrolled down
+  // near the Save button at the bottom of a long form.
+  const sampleCodeRef = useRef<HTMLInputElement | null>(null);
+
+  // Reports the result of a failed save: puts a field-specific message next
+  // to the offending input (if we know which field), always also surfaces
+  // a banner near the Save button (so something is visible regardless of
+  // scroll position), and scrolls/focuses the bad field when we can.
+  function reportSaveError(err: unknown) {
+    const message = err instanceof ApiError ? err.message : "Something went wrong";
+    const field = err instanceof ApiError ? err.field : null;
+
+    setFieldErrors(field ? { [field]: message } : {});
+    setError(message);
+
+    const ref = field === "sample_code" ? sampleCodeRef.current : null;
+    if (ref) {
+      ref.scrollIntoView({ behavior: "smooth", block: "center" });
+      ref.focus();
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
 
   // Which field_keys currently hold a value copied in from a previous
   // subject entry (drives the "Autofilled" badge); a field drops out of
@@ -317,6 +346,7 @@ export default function NewSamplePage() {
     setSaving(true);
     setSavingLabel("Saving…");
     setError(null);
+    setFieldErrors({});
     let sample;
     try {
       sample = await api.post("/samples", {
@@ -327,7 +357,7 @@ export default function NewSamplePage() {
         data,
       });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong");
+      reportSaveError(err);
       setSaving(false);
       return;
     }
@@ -372,12 +402,26 @@ export default function NewSamplePage() {
             <div>
               <label className="label">Sample ID</label>
               <input
-                className="input font-mono"
+                ref={sampleCodeRef}
+                className={`input font-mono ${fieldErrors.sample_code ? "border-danger focus:ring-danger/30" : ""}`}
                 required
                 value={sampleCode}
-                onChange={(e) => setSampleCode(e.target.value)}
+                onChange={(e) => {
+                  setSampleCode(e.target.value);
+                  if (fieldErrors.sample_code) {
+                    setFieldErrors((f) => {
+                      const next = { ...f };
+                      delete next.sample_code;
+                      return next;
+                    });
+                  }
+                }}
                 placeholder="e.g. GB-01FFPE1"
+                aria-invalid={!!fieldErrors.sample_code}
               />
+              {fieldErrors.sample_code && (
+                <p className="mt-1 text-xs text-danger">{fieldErrors.sample_code}</p>
+              )}
             </div>
             <DynamicFieldGrid sectionFields={grouped["Case Details"] ?? []} data={data} onChange={handleFieldChange} onRemoveField={handleRemoveField} onToggleAutofill={handleToggleAutofill} canRemove={canRemoveField} autofilledKeys={autofilledKeys} />
           </div>

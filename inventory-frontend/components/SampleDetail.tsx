@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Pencil, Trash2, Plus, Upload, Download, FileText, Image as ImageIcon, X } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -112,6 +112,14 @@ export function SampleDetail({
   const [addFieldSection, setAddFieldSection] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Errors attributed to a specific field (currently just sample_code
+  // uniqueness) render inline next to that input instead of only in the
+  // generic banner below the form.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // So a submit error can scroll the offending field into view -- without
+  // this, an error on Sample ID (near the top of the edit form) is
+  // invisible if the person is scrolled down near the Save button.
+  const sampleCodeRef = useRef<HTMLInputElement | null>(null);
   const [uploadFailedNotice, setUploadFailedNotice] = useState(false);
 
   useEffect(() => {
@@ -228,9 +236,30 @@ export function SampleDetail({
     });
   }
 
+  // Reports the result of a failed save: puts a field-specific message next
+  // to the offending input (if we know which field), always also surfaces
+  // a banner near the Save button (so something is visible regardless of
+  // scroll position), and scrolls/focuses the bad field when we can.
+  function reportSaveError(err: unknown) {
+    const message = err instanceof ApiError ? err.message : "Something went wrong";
+    const field = err instanceof ApiError ? err.field : null;
+
+    setFieldErrors(field ? { [field]: message } : {});
+    setError(message);
+
+    const ref = field === "sample_code" ? sampleCodeRef.current : null;
+    if (ref) {
+      ref.scrollIntoView({ behavior: "smooth", block: "center" });
+      ref.focus();
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   async function handleSave() {
     setSaving(true);
     setError(null);
+    setFieldErrors({});
     try {
       const updated = await api.patch(`/samples/${sampleId}`, {
         subject_code: form.subject_code,
@@ -242,7 +271,7 @@ export function SampleDetail({
       setSample(updated);
       setEditing(false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong");
+      reportSaveError(err);
     } finally {
       setSaving(false);
     }
@@ -323,7 +352,25 @@ export function SampleDetail({
               </div>
               <div>
                 <label className="label">Sample ID</label>
-                <input className="input font-mono" value={form.sample_code} onChange={(e) => setForm((f) => ({ ...f, sample_code: e.target.value }))} />
+                <input
+                  ref={sampleCodeRef}
+                  className={`input font-mono ${fieldErrors.sample_code ? "border-danger focus:ring-danger/30" : ""}`}
+                  value={form.sample_code}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, sample_code: e.target.value }));
+                    if (fieldErrors.sample_code) {
+                      setFieldErrors((fe) => {
+                        const next = { ...fe };
+                        delete next.sample_code;
+                        return next;
+                      });
+                    }
+                  }}
+                  aria-invalid={!!fieldErrors.sample_code}
+                />
+                {fieldErrors.sample_code && (
+                  <p className="mt-1 text-xs text-danger">{fieldErrors.sample_code}</p>
+                )}
               </div>
               <EditFieldGrid section="Case Details" groupedDataKeys={groupedDataKeys} fieldByKey={fieldByKey} formData={form.data} onChange={handleFieldChange} onRemoveField={handleRemoveField} canRemove={canRemoveField} />
             </div>
@@ -386,7 +433,7 @@ export function SampleDetail({
           {error && <div className="rounded border border-danger/30 bg-dangerSoft px-3 py-2 text-sm text-danger">{error}</div>}
 
           <div className="flex justify-end gap-2 border-t border-line pt-5">
-            <button className="btn-secondary" onClick={() => { setEditing(false); setForm({ subject_code: sample.subject_code ?? "", sample_code: sample.sample_code, sample_type: sample.sample_type, collection_date: sample.collection_date ?? "", data: sample.data ?? {} }); }}>
+            <button className="btn-secondary" onClick={() => { setEditing(false); setError(null); setFieldErrors({}); setForm({ subject_code: sample.subject_code ?? "", sample_code: sample.sample_code, sample_type: sample.sample_type, collection_date: sample.collection_date ?? "", data: sample.data ?? {} }); }}>
               Cancel
             </button>
             <button className="btn-primary" disabled={saving} onClick={handleSave}>

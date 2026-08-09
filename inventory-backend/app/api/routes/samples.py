@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, cast, String
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import get_sample_or_404, assert_can_access_sample, get_site_or_404
 from app.core.security import get_current_user
@@ -13,6 +14,31 @@ from app.models.user import User, UserRole
 from app.schemas.sample import SampleCreate, SampleUpdate, SampleOut, SamplePage, BulkDeleteRequest, BulkDeleteResponse
 
 router = APIRouter(prefix="/samples", tags=["samples"])
+
+
+def _duplicate_sample_code_error(sample_code: str) -> HTTPException:
+    """
+    A single, consistent 409 shape for a sample_code uniqueness violation --
+    `detail` is an object (not a plain string) so the frontend can tell
+    *which* field to flag instead of just showing raw text somewhere.
+    """
+    return HTTPException(
+        status_code=409,
+        detail={
+            "field": "sample_code",
+            "message": f'Sample ID "{sample_code}" is already in use. Each sample must have a unique ID.',
+        },
+    )
+
+
+def _is_sample_code_violation(err: IntegrityError) -> bool:
+    # psycopg populates .diag.constraint_name on unique-violation errors --
+    # that's the reliable signal. Fall back to matching the constraint/index
+    # name in the raw driver message in case .diag isn't populated for some
+    # reason (e.g. a different driver).
+    constraint = getattr(getattr(err.orig, "diag", None), "constraint_name", "") or ""
+    orig_msg = str(err.orig).lower()
+    return "sample_code" in constraint or "sample_code" in orig_msg
 
 
 FIELD_SEARCH_RE = re.compile(
@@ -54,7 +80,13 @@ def create_sample(
         created_by=user.id,
     )
     db.add(sample)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        if _is_sample_code_violation(e):
+            raise _duplicate_sample_code_error(payload.sample_code)
+        raise HTTPException(status_code=409, detail={"field": None, "message": "This sample conflicts with an existing record."})
     db.refresh(sample)
     return sample
 
@@ -167,7 +199,13 @@ def update_sample(
     if payload.data is not None:
         sample.data = {**sample.data, **payload.data}  # merge, don't overwrite whole blob
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        if _is_sample_code_violation(e):
+            raise _duplicate_sample_code_error(payload.sample_code or sample.sample_code)
+        raise HTTPException(status_code=409, detail={"field": None, "message": "This sample conflicts with an existing record."})
     db.refresh(sample)
     return sample
 

@@ -23,7 +23,7 @@ class Sample(Base):
     site_id = Column(UUID(as_uuid=True), ForeignKey("sites.id"), nullable=False, index=True)
 
     subject_code = Column(String, nullable=True, index=True)   # e.g. "GB-01" -- shared across a subject's samples
-    sample_code = Column(String, nullable=False, index=True)   # e.g. "GB-01FFPE1" -- unique per physical sample
+    sample_code = Column(String, nullable=False, unique=True, index=True)   # e.g. "GB-01FFPE1" -- unique per physical sample
     sample_type = Column(String, nullable=False, index=True)   # e.g. "FFPE Block", "Frozen Tumor"
     collection_date = Column(Date, nullable=True, index=True)
 
